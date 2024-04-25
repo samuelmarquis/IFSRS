@@ -1,6 +1,8 @@
 #![warn(clippy::all, rust_2018_idioms)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
+use eframe::Renderer::Wgpu;
+
 // When compiling natively:
 #[cfg(not(target_arch = "wasm32"))]
 fn main() -> eframe::Result<()> {
@@ -15,12 +17,13 @@ fn main() -> eframe::Result<()> {
                 eframe::icon_data::from_png_bytes(&include_bytes!("../assets/icon-256.png")[..])
                     .expect("Failed to load icon"),
             ),
+        renderer: Wgpu,
         ..Default::default()
     };
     eframe::run_native(
         "IFSRS but it's totally not just an interface that doesn't do anything",
         native_options,
-        Box::new(|cc| Box::new(IFSRS::Display::new(cc))),
+        Box::new(|cc| Box::new(futures::executor::block_on(IFSRS::Display::new(cc)))),
     )
 }
 
@@ -37,7 +40,7 @@ fn main() {
             .start(
                 "the_canvas_id", // hardcode it
                 web_options,
-                Box::new(|cc| Box::new(IFSRS::Display::new(cc))),
+                Box::new(|cc| Box::new(futures::executor::block_on(IFSRS::Display::new(cc)))),
             )
             .await
             .expect("failed to start eframe");
