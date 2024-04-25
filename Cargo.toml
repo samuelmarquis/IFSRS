@@ -1,0 +1,7 @@
+[package]
+name = "IFSRS"
+version = "0.1.0"
+authors = ["Samuel Marquis", "Devin Brite"]
+edition = "2021"
+include = ["LICENSE-APACHE", "LICENSE-MIT", "**/*.rs", "Cargo.toml"]
+rust-version = "1.76"
