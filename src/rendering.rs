@@ -1,19 +1,24 @@
 use egui::TextureId;
 use egui_wgpu::RenderState;
-use wgpu::{Extent3d, FilterMode, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages, TextureViewDescriptor};
+use wgpu::{Extent3d, FilterMode, RenderPipeline, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages, TextureView, TextureViewDescriptor};
 use wgpu::TextureFormat::Rgba8UnormSrgb;
 
 pub struct GraphicsEngine {
+    pipeline: RenderPipeline,
+    texture_view: TextureView,
     pub(crate) output_texture: TextureId
 }
+
+// create texture view, create shader, create render_pipeline,
+// per frame, create encoder, create render pass (can this be reused?), and submit to queue
 
 impl GraphicsEngine {
     pub fn new_engine(wgpu: &RenderState) -> Self {
         let draw_tex = wgpu.device.create_texture(&TextureDescriptor {
             label: None,
             size: Extent3d {
-                width: 1921,
-                height: 1080,
+                width: 64,
+                height: 64,
                 depth_or_array_layers: 1,
             },
             mip_level_count: 1,
@@ -80,6 +85,16 @@ impl GraphicsEngine {
             multiview: None,
         });
 
+        let tex_id = wgpu.renderer.write().register_native_texture(&*wgpu.device, &tex_view, FilterMode::Nearest);
+
+        Self {
+            pipeline: render_pipeline,
+            texture_view: tex_view,
+            output_texture: tex_id
+        }
+    }
+
+    pub fn render(&mut self, wgpu: &RenderState) {
         let mut encoder = wgpu.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Render Encoder"),
         });
@@ -90,7 +105,7 @@ impl GraphicsEngine {
                 color_attachments: &[
                     // This is what @location(0) in the fragment shader targets
                     Some(wgpu::RenderPassColorAttachment {
-                        view: &tex_view,
+                        view: &self.texture_view,
                         resolve_target: None,
                         ops: wgpu::Operations {
                             load: wgpu::LoadOp::Clear(
@@ -111,15 +126,10 @@ impl GraphicsEngine {
             });
 
 
-            render_pass.set_pipeline(&render_pipeline); // 2.
-            render_pass.draw(0..3, 0..1); // 3.
+            render_pass.set_pipeline(&self.pipeline);
+            render_pass.draw(0..3, 0..1);
         };
 
-        let tex_id = wgpu.renderer.write().register_native_texture(&*wgpu.device, &tex_view, FilterMode::Nearest);
-
         wgpu.queue.submit([encoder.finish()]);
-        Self {
-            output_texture: tex_id
-        }
     }
 }
