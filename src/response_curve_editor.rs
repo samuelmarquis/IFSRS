@@ -1,4 +1,4 @@
-use egui::epaint::{CubicBezierShape, PathShape, QuadraticBezierShape};
+use egui::epaint::{PathShape};
 use egui::*;
 use crate::response_curve_editor::Curve::Overall;
 
@@ -14,18 +14,25 @@ pub struct ResponseCurveEditor{
     selected_curve: Curve,
 
     /// The control points.
-    overall_points: Vec<Pos2>,
-    red_points: Vec<Pos2>,
-    green_points: Vec<Pos2>,
-    blue_points: Vec<Pos2>,
-    alpha_points: Vec<Pos2>,
+    points_o: Vec<Pos2>,
+    points_r: Vec<Pos2>,
+    points_g: Vec<Pos2>,
+    points_b: Vec<Pos2>,
+    points_a: Vec<Pos2>,
 
     /// Stroke for auxiliary line.
-    stroke: Stroke,
+    stroke_o: Stroke,
+    stroke_r: Stroke,
+    stroke_g: Stroke,
+    stroke_b: Stroke,
+    stroke_a: Stroke,
 
     bounding_box_stroke: Stroke,
 }
 
+///TODO
+/// This editor should allow you to switch between five different value curves for each image channel, as well as their sum.
+/// We would like to display a histogram underneath the curve, showing the distribution of tones in the image.
 impl Default for ResponseCurveEditor {
     fn default() -> Self {
         let default_curve = vec![pos2(0.0, 1.0),
@@ -35,12 +42,16 @@ impl Default for ResponseCurveEditor {
                                             pos2(1.0,0.0)];
         Self {
             selected_curve: Overall,
-            overall_points: default_curve.clone(), //invert Y value after
-            red_points: default_curve.clone(),
-            green_points: default_curve.clone(),
-            blue_points: default_curve.clone(),
-            alpha_points: default_curve.clone(),
-            stroke: Stroke::new(3.0, Color32::RED.linear_multiply(0.25)),
+            points_o: default_curve.clone(), //invert Y value when calculating actual value-curve
+            points_r: default_curve.clone(),
+            points_g: default_curve.clone(),
+            points_b: default_curve.clone(),
+            points_a: default_curve.clone(),
+            stroke_o: Stroke::new(2.0, Color32::WHITE.linear_multiply(0.25)),
+            stroke_r: Stroke::new(2.0, Color32::RED.linear_multiply(0.25)),
+            stroke_g: Stroke::new(2.0, Color32::GREEN.linear_multiply(0.25)),
+            stroke_b: Stroke::new(2.0, Color32::BLUE.linear_multiply(0.25)),
+            stroke_a: Stroke::new(2.0, Color32::GRAY.linear_multiply(0.25)),
             bounding_box_stroke: Stroke::new(1.0, Color32::LIGHT_GREEN.linear_multiply(0.25)),
         }
     }
@@ -68,10 +79,15 @@ impl ResponseCurveEditor {
         let ywidth = response.rect.max[1] - response.rect.min[1];
         let scale : Vec2 = vec2(1.0/xwidth, 1.0/ywidth);
 
-        let control_point_radius = 8.0;
-
-        let control_point_shapes: Vec<Shape> = self
-            .overall_points
+        let control_point_radius = 6.0;
+        let mut selected_points = match self.selected_curve {
+            Curve::Overall => &mut self.points_o,
+            Curve::Red => &mut self.points_r,
+            Curve::Green => &mut self.points_g,
+            Curve::Blue => &mut self.points_b,
+            Curve::Alpha => &mut self.points_a,
+        };
+        let control_point_shapes: Vec<Shape> = selected_points
             .iter_mut()
             .enumerate()
             .map(|(i, point)| {
@@ -94,13 +110,18 @@ impl ResponseCurveEditor {
 
         //let mut all_points : [Pos2; self.control_points.len()+2] = self.control_points;
 
-        let points_in_screen: Vec<Pos2> = self
-            .overall_points
+        let points_in_screen: Vec<Pos2> = selected_points
             .iter()
             .map(|p| to_screen * *p)
             .collect();
 
-        painter.add(PathShape::line(points_in_screen, self.stroke));
+        painter.add(PathShape::line(points_in_screen, *match self.selected_curve {
+            Curve::Overall => &self.stroke_o,
+            Curve::Red => &self.stroke_r,
+            Curve::Green => &self.stroke_g,
+            Curve::Blue => &self.stroke_b,
+            Curve::Alpha => &self.stroke_a,
+        }));
         painter.extend(control_point_shapes);
 
         response

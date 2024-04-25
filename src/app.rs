@@ -1,6 +1,12 @@
 use std::path::Path;
 use egui::{Frame, widgets, Window};
+use crate::affine_editor::AffineEditor;
+use crate::animation_editor::AnimationEditor;
+use crate::automation_editor::AutomationEditor;
+use crate::palette_editor::PaletteEditor;
 use crate::response_curve_editor::ResponseCurveEditor;
+use crate::weight_graph_editor::WeightGraphEditor;
+
 //use crate::spline_edit::PaintBezier;
 
 const UPPER_BOUND: u16 = u16::MAX; //for when we need an inclusive range on something that should have no upper bound
@@ -37,11 +43,13 @@ pub struct Display<'a> {
     show_affines: bool,
     show_weights: bool,
     show_animator: bool,
-    rcurvewindow: ResponseCurveEditor,
-    //palettewindow: ResponseCurveEditor,
-    //affinewindow: ResponseCurveEditor,
-    //weightwindow: ResponseCurveEditor,
-    //animatorwindow: ResponseCurveEditor,
+    show_automator: bool,
+    rcurveswindow: ResponseCurveEditor,
+    palettewindow: PaletteEditor,
+    affineswindow: AffineEditor,
+    weightswindow: WeightGraphEditor,
+    animatorwindow: AnimationEditor,
+    automatorwindow: AutomationEditor,
 }
 
 impl Default for Display<'_> {
@@ -67,11 +75,17 @@ impl Default for Display<'_> {
             use_batch_mode: false,
             pause_rendering: false,
             show_rcurves: false,
+            show_palette: false,
             show_affines: false,
             show_weights: false,
-            show_palette: false,
             show_animator: false,
-            rcurvewindow: ResponseCurveEditor::default(),
+            show_automator: false,
+            rcurveswindow: ResponseCurveEditor::default(),
+            palettewindow: PaletteEditor::default(),
+            affineswindow: AffineEditor::default(),
+            weightswindow: WeightGraphEditor::default(),
+            animatorwindow: AnimationEditor::default(),
+            automatorwindow: AutomationEditor::default(),
         }
     }
 }
@@ -103,19 +117,22 @@ impl eframe::App for Display<'_> {
         //If sub-windows are open, draw them
         Window::new("Response Curve Editor")
             .open(&mut self.show_rcurves)
-            .show(ctx, |ui|self.rcurvewindow.ui_content(ui));
+            .show(ctx, |ui|self.rcurveswindow.ui_content(ui));
         Window::new("Palette Editor")
             .open(&mut self.show_palette)
-            .show(ctx, |ui|self.rcurvewindow.ui_content(ui));
+            .show(ctx, |ui|self.palettewindow.ui_content(ui));
         Window::new("Affine Editor")
             .open(&mut self.show_affines)
-            .show(ctx, |ui|self.rcurvewindow.ui_content(ui));
+            .show(ctx, |ui|self.affineswindow.ui_content(ui));
         Window::new("Weight Graph Editor")
             .open(&mut self.show_weights)
-            .show(ctx, |ui|self.rcurvewindow.ui_content(ui));
-        Window::new("Animation")
+            .show(ctx, |ui|self.weightswindow.ui_content(ui));
+        Window::new("Animation Editor")
             .open(&mut self.show_animator)
-            .show(ctx, |ui|self.rcurvewindow.ui_content(ui));
+            .show(ctx, |ui|self.animatorwindow.ui_content(ui));
+        Window::new("Automation Editor")
+            .open(&mut self.show_automator)
+            .show(ctx, |ui|self.automatorwindow.ui_content(ui));
 
 
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
@@ -155,6 +172,7 @@ impl eframe::App for Display<'_> {
                             self.show_affines = false;
                             self.show_weights = false;
                             self.show_animator = false;
+                            self.show_automator = false;
                         }
                         egui::widgets::global_dark_light_mode_buttons(ui);
                     });
@@ -182,6 +200,9 @@ impl eframe::App for Display<'_> {
             }
             if ui.button("Animation").clicked() {
                 self.show_animator = !self.show_animator;
+            }
+            if ui.button("Automation").clicked() {
+                self.show_automator = !self.show_automator;
             }
         });
 
