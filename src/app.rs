@@ -285,6 +285,7 @@ impl eframe::App for Display<'_> {
         });
 
         let x = self.graphics.as_mut().unwrap();
+        x.render(_frame.wgpu_render_state().unwrap());
 
         egui::CentralPanel::default().frame(Frame::none()).show(ctx, |ui| {
             //render window goes here
