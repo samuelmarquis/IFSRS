@@ -1,5 +1,8 @@
 use std::path::Path;
-use egui::widgets;
+use egui::{Frame, widgets, Window};
+use crate::response_curve_editor::ResponseCurveEditor;
+//use crate::spline_edit::PaintBezier;
+
 const UPPER_BOUND: u16 = u16::MAX; //for when we need an inclusive range on something that should have no upper bound
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 //#[derive(serde::Deserialize, serde::Serialize)]
@@ -8,6 +11,7 @@ pub struct Display<'a> {
     // image settings
     width : u16,
     height : u16,
+    lock_aspect_ratio: bool,
     brightness: f32, //strictly >= 0
     gamma_inv: f32, //strictly >= 0
     gamma_thresh: f32, //strictly >= 0
@@ -27,6 +31,17 @@ pub struct Display<'a> {
     use_batch_mode: bool,
     //#[serde(skip)]
     pause_rendering: bool,
+    //windows
+    show_rcurves: bool,
+    show_palette: bool,
+    show_affines: bool,
+    show_weights: bool,
+    show_animator: bool,
+    rcurvewindow: ResponseCurveEditor,
+    //palettewindow: ResponseCurveEditor,
+    //affinewindow: ResponseCurveEditor,
+    //weightwindow: ResponseCurveEditor,
+    //animatorwindow: ResponseCurveEditor,
 }
 
 impl Default for Display<'_> {
@@ -34,6 +49,7 @@ impl Default for Display<'_> {
         Self {
             width: 512,
             height: 512,
+            lock_aspect_ratio: true,
             brightness: 1.0,
             gamma_inv: 1.0,
             gamma_thresh: 0.0,
@@ -49,7 +65,13 @@ impl Default for Display<'_> {
             use_stopping_sl: false,
             batch_dir: Path::new("."),
             use_batch_mode: false,
-            pause_rendering: false
+            pause_rendering: false,
+            show_rcurves: false,
+            show_affines: false,
+            show_weights: false,
+            show_palette: false,
+            show_animator: false,
+            rcurvewindow: ResponseCurveEditor::default(),
         }
     }
 }
@@ -71,19 +93,32 @@ impl Display<'_> {
 }
 
 impl eframe::App for Display<'_> {
-    /// Called by the frame work to save state before shutdown.
+    /// Called by the framework to save state before shutdown.
     //fn save(&mut self, storage: &mut dyn eframe::Storage) {
     //    eframe::set_value(storage, eframe::APP_KEY, self);
     //}
 
     /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        // Put your widgets into a `SidePanel`, `TopBottomPanel`, `CentralPanel`, `Window` or `Area`.
-        // For inspiration and more examples, go to https://emilk.github.io/egui
+        //If sub-windows are open, draw them
+        Window::new("Response Curve Editor")
+            .open(&mut self.show_rcurves)
+            .show(ctx, |ui|self.rcurvewindow.ui_content(ui));
+        Window::new("Palette Editor")
+            .open(&mut self.show_palette)
+            .show(ctx, |ui|self.rcurvewindow.ui_content(ui));
+        Window::new("Affine Editor")
+            .open(&mut self.show_affines)
+            .show(ctx, |ui|self.rcurvewindow.ui_content(ui));
+        Window::new("Weight Graph Editor")
+            .open(&mut self.show_weights)
+            .show(ctx, |ui|self.rcurvewindow.ui_content(ui));
+        Window::new("Animation")
+            .open(&mut self.show_animator)
+            .show(ctx, |ui|self.rcurvewindow.ui_content(ui));
+
 
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
-            // The top panel is often a good place for a menu bar:
-
             egui::menu::bar(ui, |ui| {
                 // NOTE: no File->Quit on web pages!
                 let is_web = cfg!(target_arch = "wasm32");
@@ -114,9 +149,17 @@ impl eframe::App for Display<'_> {
                         if ui.button("Copy image to clipboard").clicked() {}
                     });
                     ui.menu_button("View", |ui| {
-                        if ui.button("Close all windows").clicked() {}
+                        if ui.button("Close all windows").clicked() {
+                            self.show_rcurves = false;
+                            self.show_palette = false;
+                            self.show_affines = false;
+                            self.show_weights = false;
+                            self.show_animator = false;
+                        }
                         egui::widgets::global_dark_light_mode_buttons(ui);
-
+                    });
+                    ui.menu_button("Help", |ui| {
+                        ui.hyperlink_to("Github", "https://github.com/samuelmarquis/IFSRS");
                     });
                 }
             });
@@ -125,18 +168,33 @@ impl eframe::App for Display<'_> {
 
         egui::SidePanel::left("left_panel").show(ctx, |ui| {
             ui.label("Editors");
-            if ui.button("Response curves").clicked() {}
-            if ui.button("Palette").clicked() {}
-            if ui.button("Affine editor").clicked() {}
-            if ui.button("Weight graph").clicked() {}
-            if ui.button("Animation").clicked() {}
+            if ui.button("Response Curves").clicked() {
+                self.show_rcurves = !self.show_rcurves;
+            }
+            if ui.button("Palette").clicked() {
+                self.show_palette = !self.show_palette;
+            }
+            if ui.button("Affine editor").clicked() {
+                self.show_affines = !self.show_affines;
+            }
+            if ui.button("Weight graph").clicked() {
+                self.show_weights = !self.show_weights;
+            }
+            if ui.button("Animation").clicked() {
+                self.show_animator = !self.show_animator;
+            }
         });
+
 
         egui::SidePanel::right("right_panel").show(ctx, |ui| {
             ui.horizontal(|ui|{
                 ui.label("Image dimensions: ");
                 integer_edit_field(ui, &mut self.width);
-                integer_edit_field(ui, &mut self.height);
+                integer_edit_field(ui, &mut self.height); //TODO--IMPLEMENT ASPECT RATIO LOCKING
+            });
+            ui.horizontal(|ui| {
+                ui.label("Lock aspect ratio? ");
+                ui.checkbox(&mut self.lock_aspect_ratio, "");
             });
             ui.separator();
             ui.horizontal(|ui|{
@@ -202,7 +260,6 @@ impl eframe::App for Display<'_> {
                 ui.checkbox(&mut self.pause_rendering, "");
             });
         });
-
         egui::CentralPanel::default().show(ctx, |ui| {
             //render window goes here
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
