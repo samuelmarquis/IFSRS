@@ -13,7 +13,11 @@ use std::rc::Rc;
 use egui::{Frame, widgets, Window};
 use crate::rendering::GraphicsEngine;
 use crate::response_curve_editor::ResponseCurveEditor;
-//use crate::spline_edit::PaintBezier;
+use crate::palette_editor::PaletteEditor;
+use crate::affine_editor::AffineEditor;
+use crate::weight_graph_editor::WeightGraphEditor;
+use crate::animation_editor::AnimationEditor;
+use crate::automation_editor::AutomationEditor;
 
 const UPPER_BOUND: u16 = u16::MAX; //for when we need an inclusive range on something that should have no upper bound
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
@@ -49,12 +53,13 @@ pub struct Display<'a> {
     show_affines: bool,
     show_weights: bool,
     show_animator: bool,
-    rcurvewindow: ResponseCurveEditor,
-    //palettewindow: ResponseCurveEditor,
-    //affinewindow: ResponseCurveEditor,
-    //weightwindow: ResponseCurveEditor,
-    //animatorwindow: ResponseCurveEditor,
-
+    show_automator: bool,
+    response_curve_editor: ResponseCurveEditor,
+    palette_editor: PaletteEditor,
+    affine_editor: AffineEditor,
+    weight_graph_editor: WeightGraphEditor,
+    animation_editor: AnimationEditor,
+    automation_editor: AutomationEditor,
     graphics: Option<GraphicsEngine>,
 }
 
@@ -85,7 +90,13 @@ impl Default for Display<'_> {
             show_weights: false,
             show_palette: false,
             show_animator: false,
-            rcurvewindow: ResponseCurveEditor::default(),
+            show_automator: false,
+            response_curve_editor: ResponseCurveEditor::default(),
+            palette_editor: PaletteEditor::default(),
+            affine_editor: AffineEditor::default(),
+            weight_graph_editor: WeightGraphEditor::default(),
+            animation_editor: AnimationEditor::default(),
+            automation_editor: AutomationEditor::default(),
             graphics: None,
         }
     }
@@ -127,19 +138,22 @@ impl eframe::App for Display<'_> {
         //If sub-windows are open, draw them
         Window::new("Response Curve Editor")
             .open(&mut self.show_rcurves)
-            .show(ctx, |ui|self.rcurvewindow.ui_content(ui));
+            .show(ctx, |ui|self.response_curve_editor.ui_content(ui));
         Window::new("Palette Editor")
             .open(&mut self.show_palette)
-            .show(ctx, |ui|self.rcurvewindow.ui_content(ui));
+            .show(ctx, |ui|self.palette_editor.ui_content(ui));
         Window::new("Affine Editor")
             .open(&mut self.show_affines)
-            .show(ctx, |ui|self.rcurvewindow.ui_content(ui));
+            .show(ctx, |ui|self.affine_editor.ui_content(ui));
         Window::new("Weight Graph Editor")
             .open(&mut self.show_weights)
-            .show(ctx, |ui|self.rcurvewindow.ui_content(ui));
+            .show(ctx, |ui|self.weight_graph_editor.ui_content(ui));
         Window::new("Animation")
             .open(&mut self.show_animator)
-            .show(ctx, |ui|self.rcurvewindow.ui_content(ui));
+            .show(ctx, |ui|self.animation_editor.ui_content(ui));
+        Window::new("Automation")
+            .open(&mut self.show_automator)
+            .show(ctx, |ui|self.automation_editor.ui_content(ui));
 
 
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
@@ -179,6 +193,7 @@ impl eframe::App for Display<'_> {
                             self.show_affines = false;
                             self.show_weights = false;
                             self.show_animator = false;
+                            self.show_automator = false;
                         }
                         egui::widgets::global_dark_light_mode_buttons(ui);
                     });
@@ -205,6 +220,9 @@ impl eframe::App for Display<'_> {
             }
             if ui.button("Animation").clicked() {
                 self.show_animator = !self.show_animator;
+            }
+            if ui.button("Automation").clicked() {
+                self.show_automator = !self.show_automator;
             }
         });
 
