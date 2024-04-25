@@ -5,6 +5,7 @@ mod palette_editor;
 mod affine_editor;
 mod weight_graph_editor;
 mod animation_editor;
+mod rendering;
 //mod spline_edit;
 
 pub use app::Display;
