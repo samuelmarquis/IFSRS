@@ -8,8 +8,8 @@ fn main() -> eframe::Result<()> {
 
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([400.0, 300.0])
-            .with_min_inner_size([300.0, 220.0])
+            .with_inner_size([1280.0, 720.0])
+            .with_min_inner_size([1280.0, 720.0])
             .with_icon(
                 // NOTE: Adding an icon is optional
                 eframe::icon_data::from_png_bytes(&include_bytes!("../assets/icon-256.png")[..])
@@ -18,9 +18,9 @@ fn main() -> eframe::Result<()> {
         ..Default::default()
     };
     eframe::run_native(
-        "it's ifsrs, totally not just eframe template",
+        "IFSRS but it's totally not just an interface that doesn't do anything",
         native_options,
-        Box::new(|cc| Box::new(IFSRS::TemplateApp::new(cc))),
+        Box::new(|cc| Box::new(IFSRS::Display::new(cc))),
     )
 }
 
@@ -37,7 +37,7 @@ fn main() {
             .start(
                 "the_canvas_id", // hardcode it
                 web_options,
-                Box::new(|cc| Box::new(IFSRS::TemplateApp::new(cc))),
+                Box::new(|cc| Box::new(IFSRS::Display::new(cc))),
             )
             .await
             .expect("failed to start eframe");
