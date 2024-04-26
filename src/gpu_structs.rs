@@ -2,8 +2,8 @@
 #[derive(Copy, Clone, Debug)]
 struct CameraStruct
 {
-    view_proj_mat: [[f32; 4]; 4], //saw someone on stackoverflow pack mat4x4 this way
-    position: [f32; 4], //likewise
+    view_proj_mat: [[f32; 4]; 4], //mat4x4<f32>
+    position: [f32; 4], //vec4<f32>
     forward: [f32; 4],
     focus_point: [f32; 4],
 

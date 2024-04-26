@@ -21,7 +21,7 @@ pub struct Display<'a> {
     lock_aspect_ratio: bool,
     batch_dir: &'a Path,
     use_batch_mode: bool,
-    stopping_sl: u16,
+
     use_stopping_sl: bool,
     //windows
     show_rcurves: bool,
@@ -47,7 +47,6 @@ impl Default for Display<'_> {
             lock_aspect_ratio: true,
             batch_dir: Path::new("."),
             use_batch_mode: false,
-            stopping_sl: 15,
             use_stopping_sl: false,
             show_rcurves: false,
             show_affines: false,
@@ -247,7 +246,7 @@ impl eframe::App for Display<'_> {
             ui.horizontal(|ui|{
                 ui.label("Stopping SL: ");
                 ui.checkbox(&mut self.use_stopping_sl, "");
-                ui.add(egui::DragValue::new(&mut self.stopping_sl).speed(0.5).clamp_range(0..=UPPER_BOUND));
+                ui.add(egui::DragValue::new(&mut self.ifs.stopping_sl).speed(0.5).clamp_range(0..=UPPER_BOUND));
             });
             ui.horizontal(|ui|{
                 ui.label("Batch mode: ");
