@@ -1,7 +1,8 @@
 #![warn(clippy::all, rust_2018_idioms)]
+#![allow(dead_code)]
+#![allow(unused_variables)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
-use eframe::CreationContext;
 use eframe::Renderer::Wgpu;
 
 // When compiling natively:
@@ -22,7 +23,7 @@ fn main() -> eframe::Result<()> {
         ..Default::default()
     };
     eframe::run_native(
-        "IFSRS but it's totally not just an interface that doesn't do anything",
+        "IFSRS but it's totally not just a compute shader that doesn't connect to anything",
         native_options,
         Box::new(|cc| Box::new(IFSRS::Display::new(cc))),
     )

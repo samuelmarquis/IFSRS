@@ -1,15 +1,5 @@
-use std::thread;
-use std::time::Duration;
-use egui::load::SizedTexture;
-use egui::{TextureHandle, Vec2};
-use egui_winit::winit::dpi::Position;
-use wgpu::{BufferUsages, Extent3d, FilterMode, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages, TextureViewDescriptor};
-use wgpu::TextureFormat::Rgba8UnormSrgb;
-use wgpu::TextureViewDimension::D2;
-use wgpu::util::{BufferInitDescriptor, DeviceExt, initialize_adapter_from_env_or_default};
 
 use std::path::Path;
-use std::rc::Rc;
 use egui::{Frame, widgets, Window};
 use crate::rendering::GraphicsEngine;
 use crate::response_curve_editor::ResponseCurveEditor;
@@ -18,35 +8,21 @@ use crate::affine_editor::AffineEditor;
 use crate::weight_graph_editor::WeightGraphEditor;
 use crate::animation_editor::AnimationEditor;
 use crate::automation_editor::AutomationEditor;
+use crate::viewport::Viewport;
+use crate::ifs::IFS;
 
 const UPPER_BOUND: u16 = u16::MAX; //for when we need an inclusive range on something that should have no upper bound
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 //#[derive(serde::Deserialize, serde::Serialize)]
 //#[serde(skip)] // if we add new fields, give them default values when deserializing old state
 pub struct Display<'a> {
+    ifs: IFS,
     // image settings
-    width : u16,
-    height : u16,
     lock_aspect_ratio: bool,
-    brightness: f32, //strictly >= 0
-    gamma_inv: f32, //strictly >= 0
-    gamma_thresh: f32, //strictly >= 0
-    vibrancy: f32, //can be positive or negative
-    background_color: [f32; 3],
-    //3d settings
-    fov: f32, //[1-180]
-    aperture: f32, // strictly >= 0
-    fdist: f32, //focus distance, can be positive or negative
-    dof: f32, // strictly >= 0
-    //render settings
-    syntropy: u16, // usually > 10, strictly > 0
-    fuse: u16, // usually 20, number of iterations to discard before plotting
-    stopping_sl: u8, //(0,20], represents what depth to reach before saving the image
-    use_stopping_sl: bool,
     batch_dir: &'a Path,
     use_batch_mode: bool,
-    //#[serde(skip)]
-    pause_rendering: bool,
+    stopping_sl: u16,
+    use_stopping_sl: bool,
     //windows
     show_rcurves: bool,
     show_palette: bool,
@@ -60,31 +36,19 @@ pub struct Display<'a> {
     weight_graph_editor: WeightGraphEditor,
     animation_editor: AnimationEditor,
     automation_editor: AutomationEditor,
+    viewport: Viewport,
     graphics: Option<GraphicsEngine>,
 }
 
 impl Default for Display<'_> {
     fn default() -> Self {
         Self {
-            width: 512,
-            height: 512,
+            ifs: IFS::default(),
             lock_aspect_ratio: true,
-            brightness: 1.0,
-            gamma_inv: 1.0,
-            gamma_thresh: 0.0,
-            vibrancy: 1.0,
-            background_color: [0.0, 0.0, 0.0],
-            fov: 60.0,
-            aperture: 0.0,
-            fdist: 10.0,
-            dof: 0.25,
-            syntropy: 100,
-            fuse: 20,
-            stopping_sl: 15,
-            use_stopping_sl: false,
             batch_dir: Path::new("."),
             use_batch_mode: false,
-            pause_rendering: false,
+            stopping_sl: 15,
+            use_stopping_sl: false,
             show_rcurves: false,
             show_affines: false,
             show_weights: false,
@@ -97,6 +61,7 @@ impl Default for Display<'_> {
             weight_graph_editor: WeightGraphEditor::default(),
             animation_editor: AnimationEditor::default(),
             automation_editor: AutomationEditor::default(),
+            viewport: Viewport::default(),
             graphics: None,
         }
     }
@@ -106,7 +71,7 @@ impl Display<'_> {
     /// Called once before the first frame.
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
 
-        let mut binding = &cc.wgpu_render_state;
+        let binding = &cc.wgpu_render_state;
         let wgpu = binding.as_ref().expect("wgpu??");
 
         // Load previous app state (if any).
@@ -132,9 +97,6 @@ impl eframe::App for Display<'_> {
 
     /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-
-
-
         //If sub-windows are open, draw them
         Window::new("Response Curve Editor")
             .open(&mut self.show_rcurves)
@@ -158,51 +120,48 @@ impl eframe::App for Display<'_> {
 
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
-                // NOTE: no File->Quit on web pages!
-                let is_web = cfg!(target_arch = "wasm32");
-                if !is_web {
-                    ui.menu_button("File", |ui| {
-                        if ui.add(widgets::Button::new("New empty world").shortcut_text("Ctrl + N")).clicked() {}
-                        if ui.add(widgets::Button::new("New random world").shortcut_text("Ctrl + B")).clicked() {}
-                        ui.separator();
-                        if ui.add(widgets::Button::new("Load").shortcut_text("Ctrl + L")).clicked() {}
-                        if ui.add(widgets::Button::new("Save").shortcut_text("Ctrl + S")).clicked() {}
-                        if ui.add(widgets::Button::new("Save image").shortcut_text("Ctrl + Shift + S")).clicked() {}
-                        ui.separator();
-                        if ui.add(widgets::Button::new("Settings").shortcut_text("Alt + ,")).clicked() {}
-                        ui.separator();
-                        if ui.button("Quit").clicked() {
-                            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                        }
-                    });
-                    ui.menu_button("Edit", |ui| {
-                        if ui.add(widgets::Button::new("Undo").shortcut_text("Ctrl + Z")).clicked() {}
-                        if ui.add(widgets::Button::new("Redo").shortcut_text("Ctrl + Shift + Z")).clicked() {}
-                        ui.separator();
-                        if ui.button("Switch to B").clicked() {} // TODO--A/B testing, text should change
-                        if ui.button("Switch to B without saving").clicked() {} //TODO -- GRAY OUT IF UNAVAIL
-                        ui.separator();
-                        if ui.button("Copy parameters to clipboard").clicked() {}
-                        if ui.button("Paste parameters from clipboard").clicked() {}
-                        if ui.button("Copy image to clipboard").clicked() {}
-                    });
-                    ui.menu_button("View", |ui| {
-                        if ui.button("Close all windows").clicked() {
-                            self.show_rcurves = false;
-                            self.show_palette = false;
-                            self.show_affines = false;
-                            self.show_weights = false;
-                            self.show_animator = false;
-                            self.show_automator = false;
-                        }
-                        egui::widgets::global_dark_light_mode_buttons(ui);
-                    });
-                    ui.menu_button("Help", |ui| {
-                        ui.hyperlink_to("Github", "https://github.com/samuelmarquis/IFSRS");
-                    });
-                }
+                ui.menu_button("File", |ui| {
+                    if ui.add(widgets::Button::new("New empty world").shortcut_text("Ctrl + N")).clicked() {}
+                    if ui.add(widgets::Button::new("New random world").shortcut_text("Ctrl + B")).clicked() {}
+                    ui.separator();
+                    if ui.add(widgets::Button::new("Load").shortcut_text("Ctrl + L")).clicked() {}
+                    if ui.add(widgets::Button::new("Save").shortcut_text("Ctrl + S")).clicked() {}
+                    if ui.add(widgets::Button::new("Save image").shortcut_text("Ctrl + Shift + S")).clicked() {}
+                    ui.separator();
+                    if ui.add(widgets::Button::new("Settings").shortcut_text("Alt + ,")).clicked() {}
+                    ui.separator();
+                    if ui.button("Quit").clicked() {
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                    }
+                });
+                ui.menu_button("Edit", |ui| {
+                    if ui.add(widgets::Button::new("Undo").shortcut_text("Ctrl + Z")).clicked() {}
+                    if ui.add(widgets::Button::new("Redo").shortcut_text("Ctrl + Shift + Z")).clicked() {}
+                    ui.separator();
+                    if ui.button("Switch to B").clicked() {} // TODO--A/B testing, text should change
+                    if ui.button("Switch to B without saving").clicked() {} //TODO -- GRAY OUT IF UNAVAIL
+                    ui.separator();
+                    if ui.button("Copy parameters to clipboard").clicked() {}
+                    if ui.button("Paste parameters from clipboard").clicked() {}
+                    if ui.button("Copy image to clipboard").clicked() {}
+                });
+                ui.menu_button("View", |ui| {
+                    if ui.button("Close all windows").clicked() {
+                        self.show_rcurves = false;
+                        self.show_palette = false;
+                        self.show_affines = false;
+                        self.show_weights = false;
+                        self.show_animator = false;
+                        self.show_automator = false;
+                    }
+                    egui::widgets::global_dark_light_mode_buttons(ui);
+                });
+                ui.menu_button("Help", |ui| {
+                    ui.hyperlink_to("Github", "https://github.com/samuelmarquis/IFSRS");
+                });
             });
         });
+
 
         egui::SidePanel::left("left_panel").show(ctx, |ui| {
             ui.label("Editors");
@@ -230,8 +189,8 @@ impl eframe::App for Display<'_> {
         egui::SidePanel::right("right_panel").show(ctx, |ui| {
             ui.horizontal(|ui|{
                 ui.label("Image dimensions: ");
-                integer_edit_field(ui, &mut self.width);
-                integer_edit_field(ui, &mut self.height); //TODO--IMPLEMENT ASPECT RATIO LOCKING
+                integer_edit_field(ui, &mut self.ifs.width);
+                integer_edit_field(ui, &mut self.ifs.height); //TODO--IMPLEMENT ASPECT RATIO LOCKING
             });
             ui.horizontal(|ui| {
                 ui.label("Lock aspect ratio? ");
@@ -240,49 +199,49 @@ impl eframe::App for Display<'_> {
             ui.separator();
             ui.horizontal(|ui|{
                 ui.label("Brightness: ");
-                ui.add(egui::DragValue::new(&mut self.brightness).speed(0.1).clamp_range(0..=UPPER_BOUND));
+                ui.add(egui::DragValue::new(&mut self.ifs.brightness).speed(0.1).clamp_range(0..=UPPER_BOUND));
             });
             ui.horizontal(|ui|{
                 ui.label("1/Gamma: ");
-                ui.add(egui::DragValue::new(&mut self.gamma_inv).speed(0.1).clamp_range(0..=UPPER_BOUND));
+                ui.add(egui::DragValue::new(&mut self.ifs.gamma_inv).speed(0.1).clamp_range(0..=UPPER_BOUND));
             });
             ui.horizontal(|ui|{
                 ui.label("Gamma Threshold: ");
-                ui.add(egui::DragValue::new(&mut self.gamma_thresh).speed(0.1).clamp_range(0..=UPPER_BOUND));
+                ui.add(egui::DragValue::new(&mut self.ifs.gamma_thresh).speed(0.1).clamp_range(0..=UPPER_BOUND));
             });
             ui.horizontal(|ui|{
                 ui.label("Vibrancy: ");
-                ui.add(egui::DragValue::new(&mut self.vibrancy).speed(0.1));
+                ui.add(egui::DragValue::new(&mut self.ifs.vibrancy).speed(0.1));
             });
             ui.horizontal(|ui|{
                 ui.label("Background color: ");
-                egui::widgets::color_picker::color_edit_button_rgb(ui, &mut self.background_color);
+                egui::widgets::color_picker::color_edit_button_rgb(ui, &mut self.ifs.background_color);
             });
             ui.separator();
             ui.horizontal(|ui|{
                 ui.label("Field of View: ");
-                ui.add(egui::DragValue::new(&mut self.fov).speed(0.5).clamp_range(1..=180));
+                ui.add(egui::DragValue::new(&mut self.ifs.fov).speed(0.5).clamp_range(1..=180));
             });
             ui.horizontal(|ui|{
                 ui.label("Aperture: ");
-                ui.add(egui::DragValue::new(&mut self.aperture).speed(0.5).clamp_range(0..=UPPER_BOUND));
+                ui.add(egui::DragValue::new(&mut self.ifs.aperture).speed(0.5).clamp_range(0..=UPPER_BOUND));
             });
             ui.horizontal(|ui|{
                 ui.label("Focus Distance: ");
-                ui.add(egui::DragValue::new(&mut self.fdist).speed(0.5));
+                ui.add(egui::DragValue::new(&mut self.ifs.fdist).speed(0.5));
             });
             ui.horizontal(|ui|{
                 ui.label("Depth of Field: ");
-                ui.add(egui::DragValue::new(&mut self.dof).speed(0.5).clamp_range(0..=UPPER_BOUND));
+                ui.add(egui::DragValue::new(&mut self.ifs.dof).speed(0.5).clamp_range(0..=UPPER_BOUND));
             });
             ui.separator();
             ui.horizontal(|ui|{
-                ui.label("Syntropy: ");
-                ui.add(egui::DragValue::new(&mut self.syntropy).speed(0.5).clamp_range(1..=UPPER_BOUND));
+                ui.label("Entropy: ");
+                ui.add(egui::DragValue::new(&mut self.ifs.entropy).speed(0.5).clamp_range(1..=UPPER_BOUND));
             });
             ui.horizontal(|ui|{
                 ui.label("Fuse timer: ");
-                ui.add(egui::DragValue::new(&mut self.fuse).speed(0.5).clamp_range(0..=UPPER_BOUND));
+                ui.add(egui::DragValue::new(&mut self.ifs.fuse).speed(0.5).clamp_range(0..=UPPER_BOUND));
             });
             ui.separator();
             ui.horizontal(|ui|{
@@ -298,18 +257,16 @@ impl eframe::App for Display<'_> {
             ui.separator();
             ui.horizontal(|ui|{
                 ui.label("Pause rendering? ");
-                ui.checkbox(&mut self.pause_rendering, "");
+                ui.checkbox(&mut self.ifs.pause_rendering, "");
             });
         });
 
         let x = self.graphics.as_mut().unwrap();
         x.render(_frame.wgpu_render_state().unwrap());
-
         egui::CentralPanel::default().frame(Frame::none()).show(ctx, |ui| {
-            //render window goes here
+            self.viewport.ui_content(ui, x.output_texture);
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
                 egui::warn_if_debug_build(ui);
-                ui.image(egui::ImageSource::Texture(SizedTexture::from((x.output_texture, Vec2::new(ui.available_width(), ui.available_height())))));
             });
         });
 

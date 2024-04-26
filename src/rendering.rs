@@ -36,8 +36,7 @@ impl GraphicsEngine {
             }
         );
 
-        // Todo: don't create shader every frame :^)))
-        let shader_desc = wgpu::include_wgsl!("shader.wgsl");
+        let shader_desc = wgpu::include_wgsl!("ifs_kernel.wgsl");
         let shader = wgpu.device.create_shader_module(shader_desc);
 
         let render_pipeline_layout =

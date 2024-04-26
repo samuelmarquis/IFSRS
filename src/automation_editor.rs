@@ -1,6 +1,5 @@
 use eframe::emath;
-use eframe::emath::{Pos2, pos2, Rect, Vec2, vec2};
-use eframe::epaint::{Color32, PathShape, Shape, Stroke};
+use eframe::emath::{Pos2, Rect, Vec2, vec2};
 use egui::{Sense, Ui};
 
 pub struct AutomationEditor{

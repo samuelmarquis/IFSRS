@@ -69,7 +69,7 @@ impl ResponseCurveEditor {
             ui.selectable_value(&mut self.selected_curve, Curve::Alpha, "Alpha");
         });
         let (response, painter) =
-            ui.allocate_painter(Vec2::new(ui.available_width(), 300.0), Sense::hover());
+            ui.allocate_painter(Vec2::new(ui.available_width(), ui.available_height()), Sense::drag());
 
         let to_screen = emath::RectTransform::from_to(
             Rect::from_min_size(Pos2::ZERO, vec2(1.0,1.0)),
@@ -80,7 +80,7 @@ impl ResponseCurveEditor {
         let scale : Vec2 = vec2(1.0/xwidth, 1.0/ywidth);
 
         let control_point_radius = 6.0;
-        let mut selected_points = match self.selected_curve {
+        let selected_points = match self.selected_curve {
             Curve::Overall => &mut self.points_o,
             Curve::Red => &mut self.points_r,
             Curve::Green => &mut self.points_g,

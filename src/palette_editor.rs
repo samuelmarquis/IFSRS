@@ -42,10 +42,10 @@ impl Default for PaletteEditor {
 /// the triangle would become wider as we increase color speed, and hollower (to a wireframe outline) as we adjust opacity.
 impl PaletteEditor {
     pub fn ui_content(&mut self, ui: &mut Ui) -> egui::Response {
-        let (response, painter) =
+        let (response, _painter) =
             ui.allocate_painter(Vec2::new(ui.available_width(), 300.0), Sense::hover());
 
-        let to_screen = emath::RectTransform::from_to(
+        let _to_screen = emath::RectTransform::from_to(
             Rect::from_min_size(Pos2::ZERO, vec2(1.0,1.0)),
             response.rect,
         );
@@ -53,7 +53,7 @@ impl PaletteEditor {
 
         let xwidth = response.rect.max[0] - response.rect.min[0];
         let ywidth = response.rect.max[1] - response.rect.min[1];
-        let scale : Vec2 = vec2(1.0/xwidth, 1.0/ywidth);
+        let _scale : Vec2 = vec2(1.0/xwidth, 1.0/ywidth);
 
         response
     }

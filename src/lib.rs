@@ -7,5 +7,8 @@ mod weight_graph_editor;
 mod animation_editor;
 mod automation_editor;
 mod rendering;
+mod viewport;
+mod ifs;
+mod gpu_structs;
 
 pub use app::Display;
