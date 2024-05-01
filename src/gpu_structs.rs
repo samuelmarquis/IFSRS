@@ -1,3 +1,9 @@
+use wgpu::BufferDescriptor;
+
+pub trait Bufferable<'a> {
+    fn desc() -> wgpu::BufferDescriptor<'a>;
+}
+
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
 pub struct CameraStruct
@@ -38,26 +44,48 @@ pub struct Iterator {
 unsafe impl bytemuck::Zeroable for Iterator {}
 unsafe impl bytemuck::Pod for Iterator {}
 
+impl <'a> Bufferable<'a> for Iterator {
+    fn desc() -> BufferDescriptor<'a> {
+        BufferDescriptor {
+            label: None,
+            size: std::mem::size_of::<Iterator>() as wgpu::BufferAddress,
+            usage: wgpu::BufferUsages::UNIFORM,
+            mapped_at_creation: false,
+        }
+    }
+}
+
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
-struct Settings {
-    camera_params: CameraStruct,
+pub struct Settings {
+    pub camera_params: CameraStruct,
 
-    fog_effect: f32,
-    itnum : u32, //number of iterators
-    palettecnt : i32,
-    mark_area_in_focus: i32,
+    pub fog_effect: f32,
+    pub itnum : u32, //number of iterators
+    pub palettecnt : i32,
+    pub mark_area_in_focus: i32,
 
-    warmup: u32,
-    entropy: f32,
-    max_filter_radius: i32,
-    padding0: i32,
+    pub warmup: u32,
+    pub entropy: f32,
+    pub max_filter_radius: i32,
+    pub padding0: i32,
 
-    filter_method: i32,
-    filter_param0: f32,
-    filter_param1: f32,
-    filter_param2: f32,
+    pub filter_method: i32,
+    pub filter_param0: f32,
+    pub filter_param1: f32,
+    pub filter_param2: f32,
 }
 
 unsafe impl bytemuck::Zeroable for Settings {}
 unsafe impl bytemuck::Pod for Settings {}
+
+impl <'a> Bufferable<'a> for Settings {
+    fn desc() -> BufferDescriptor<'a> {
+        BufferDescriptor {
+            label: None,
+            size: std::mem::size_of::<Settings>() as wgpu::BufferAddress,
+            usage: wgpu::BufferUsages::UNIFORM,
+            mapped_at_creation: false,
+        }
+    }
+}

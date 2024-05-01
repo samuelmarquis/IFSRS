@@ -1,7 +1,11 @@
+use std::num::NonZeroU32;
 use egui::TextureId;
 use egui_wgpu::RenderState;
-use wgpu::{Extent3d, FilterMode, RenderPipeline, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages, TextureView, TextureViewDescriptor};
+use wgpu::{BindGroupEntry, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource, BufferDescriptor, CommandEncoderDescriptor, ComputePassDescriptor, ComputePipelineDescriptor, DynamicOffset, Extent3d, FilterMode, PipelineLayout, PipelineLayoutDescriptor, RenderPipeline, ShaderModule, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages, TextureView, TextureViewDescriptor};
+use wgpu::BufferBindingType::{Storage, Uniform};
 use wgpu::TextureFormat::Rgba8UnormSrgb;
+use wgpu::util::{BufferInitDescriptor, DeviceExt};
+use crate::gpu_structs::*;
 
 pub struct GraphicsEngine {
     pipeline: RenderPipeline,
@@ -14,6 +18,123 @@ pub struct GraphicsEngine {
 
 impl GraphicsEngine {
     pub fn new_engine(wgpu: &RenderState) -> Self {
+        let (pipeline, texture_view, output_texture, shader) = Self::init_render_pipeline(wgpu);
+
+        let bd_wong = Settings::desc();
+        println!("{:?}", bd_wong);
+        println!("{}", std::mem::size_of::<Settings>());
+
+        let settings_buffer = wgpu.device.create_buffer_init(
+            &BufferInitDescriptor {
+                label: None,
+                contents: bytemuck::bytes_of(
+                    &Settings {
+                        camera_params: CameraStruct {
+                            view_proj_mat: [
+                                [0.1, 0.2, 0.3, 0.4],
+                                [0.0, 0.0, 0.0, 0.5],
+                                [0.0, 0.0, 0.0, 0.6],
+                                [6.9, 0.0, 0.0, 0.7],
+                            ],
+                            position: [0.0, 0.0, 0.0, 0.0],
+                            forward: [0.0, 1.0, 0.0, 0.0],
+                            focus_point: [0.0, 1.0, 0.0, 0.0],
+                            aperture: 0.0,
+                            focus_distance: 0.0,
+                            depth_of_field: 0.0,
+                            projection_type: 0,
+                        },
+                        fog_effect: 0.0,
+                        itnum: 0,
+                        palettecnt: 0,
+                        mark_area_in_focus: 0,
+                        warmup: 0,
+                        entropy: 0.0,
+                        max_filter_radius: 0,
+                        padding0: 0,
+                        filter_method: 0,
+                        filter_param0: 0.0,
+                        filter_param1: 0.0,
+                        filter_param2: 0.0,
+                    }),
+                usage: Settings::desc().usage
+            }
+        );
+
+        let group_layout = wgpu.device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+            label: None,
+            entries: &[
+                BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::all(),
+                    ty: wgpu::BindingType::Buffer {
+                        ty: Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }
+            ],
+        });
+
+        let bind_group = wgpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: None,
+            layout: &group_layout,
+            entries: &[
+                BindGroupEntry {
+                    binding: 2,
+                    resource: BindingResource::Buffer(settings_buffer.as_entire_buffer_binding()),
+                }
+            ],
+        });
+
+        let layout = wgpu.device.create_pipeline_layout(&PipelineLayoutDescriptor {
+            label: None,
+            bind_group_layouts: &[
+                &group_layout,
+            ],
+            push_constant_ranges: &[
+
+            ],
+        });
+
+        let compute_pipeline = wgpu.device.create_compute_pipeline(&ComputePipelineDescriptor {
+            label: None,
+            layout: Some(&layout),
+            module: &shader,
+            entry_point: "main",
+        });
+
+        // temp
+        let mut encoder = wgpu.device.create_command_encoder(&CommandEncoderDescriptor {
+            label: None,
+        });
+
+        {
+            let mut pass = encoder.begin_compute_pass(&ComputePassDescriptor {
+                label: None,
+                timestamp_writes: None,
+            });
+
+            pass.set_pipeline(&compute_pipeline);
+            pass.set_bind_group(0, &bind_group, &[]); // TODO: find out what offsets means
+            pass.dispatch_workgroups(4, 4, 4);
+        }
+
+
+        wgpu.queue.submit([encoder.finish()]);
+
+
+        Self {
+            pipeline,
+            texture_view,
+            output_texture
+        }
+    }
+
+    // fn init_compute_pipeline()
+
+    fn init_render_pipeline(wgpu: &RenderState) -> (RenderPipeline, TextureView, TextureId, ShaderModule) {
         let draw_tex = wgpu.device.create_texture(&TextureDescriptor {
             label: None,
             size: Extent3d {
@@ -86,14 +207,18 @@ impl GraphicsEngine {
 
         let tex_id = wgpu.renderer.write().register_native_texture(&*wgpu.device, &tex_view, FilterMode::Nearest);
 
-        Self {
-            pipeline: render_pipeline,
-            texture_view: tex_view,
-            output_texture: tex_id
-        }
+        return (render_pipeline, tex_view, tex_id, shader)
     }
 
     pub fn render(&mut self, wgpu: &RenderState) {
+        self.render_to_screen(wgpu);
+    }
+
+    pub fn do_compute(&mut self, wgpu: &RenderState) {
+
+    }
+
+    pub fn render_to_screen(&mut self, wgpu: &RenderState) {
         let mut encoder = wgpu.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Render Encoder"),
         });

@@ -5,8 +5,9 @@ use rand::random;
 use crate::ifs::IFS;
 use crate::transform::Transform;
 
+
 #[derive(Clone)]
-pub(crate) struct Iterator{
+pub(crate) struct Iterator {
     pub id: i32,
     pub name: String,
     pub transform: Transform,
@@ -23,8 +24,8 @@ pub(crate) struct Iterator{
     pub weight_to: HashMap<Iterator, f64>,
 }
 
-impl Default for Iterator{
-    fn default() -> Self{
+impl Default for Iterator {
+    fn default() -> Self {
         Self{
             id: random(),
             name: String::from(""),
@@ -79,7 +80,7 @@ impl IndexMut<&Iterator> for Iterator {
 // }
 
 impl Iterator{
-    fn set_transform(&mut self, tf: Transform){
+    fn set_transform(&mut self, tf: Transform) {
         self.transform = tf;
         self.real_params = self.transform.real_params.clone();
         self.vec3_params = self.transform.vec3_params.clone(); //??????? this seems gone
