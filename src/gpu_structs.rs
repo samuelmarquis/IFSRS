@@ -1,16 +1,16 @@
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
-struct CameraStruct
+pub struct CameraStruct
 {
-    view_proj_mat: [[f32; 4]; 4], //mat4x4<f32>
-    position: [f32; 4], //vec4<f32>
-    forward: [f32; 4],
-    focus_point: [f32; 4],
+    pub view_proj_mat: [[f32; 4]; 4], //mat4x4<f32>
+    pub position: [f32; 4], //vec4<f32>
+    pub forward: [f32; 4],
+    pub focus_point: [f32; 4],
 
-    aperture: f32,
-    focus_distance: f32,
-    depth_of_field: f32,
-    projection_type: i32,
+    pub aperture: f32,
+    pub focus_distance: f32,
+    pub depth_of_field: f32,
+    pub projection_type: i32,
 }
 
 unsafe impl bytemuck::Zeroable for CameraStruct {}
@@ -18,21 +18,21 @@ unsafe impl bytemuck::Pod for CameraStruct {}
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
-struct Iterator {
-    color_speed: f32,
-    color_index: f32,
-    opacity: f32,
-    reset_prob: f32,
+pub struct Iterator {
+    pub color_speed: f32,
+    pub color_index: f32,
+    pub opacity: f32,
+    pub reset_prob: f32,
 
-    reset_alias: i32,
-    tfId: i32,
-    real_params_index: i32,
-    vec3_params_index: i32,
+    pub reset_alias: i32,
+    pub tf_id: i32,
+    pub real_params_index: i32,
+    pub vec3_params_index: i32,
 
-    shading_mode: i32,//0: default, 1: delta_p
-    tf_mix: f32,
-    tf_add: f32,
-    padding2: i32,
+    pub shading_mode: i32,//0: default, 1: delta_p
+    pub tf_mix: f32,
+    pub tf_add: f32,
+    pub padding2: i32,
 }
 
 unsafe impl bytemuck::Zeroable for Iterator {}

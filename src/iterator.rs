@@ -1,5 +1,6 @@
 use std::collections::HashMap;
-use std::ops::Index;
+use std::hash::{Hash, Hasher};
+use std::ops::{Index, IndexMut, Deref};
 use rand::random;
 use crate::ifs::IFS;
 use crate::transform::Transform;
@@ -43,20 +44,39 @@ impl Default for Iterator{
     }
 }
 
-//TODO--indexing an iterator should return the weights to the iterator with an id that matches i
-impl Index<usize> for Iterator{
-    type Output = f64;
-    fn index<'a>(&'a self, i: usize) -> &'a f64{
-        return &0.0
-    }
-}
-
 impl PartialEq<Self> for Iterator {
     fn eq(&self, other: &Self) -> bool {
         self.id == other.id //fine
     }
 }
 
+impl Eq for Iterator {} // Required for the Hash trait
+
+impl Hash for Iterator {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.id;
+    }
+}
+
+impl Index<&Iterator> for Iterator {
+    type Output = f64;
+    fn index(&self, index: &Iterator) -> &Self::Output {
+        self.weight_to.get(index).unwrap_or(&0.0) // Use 0.0 as default if not found
+    }
+}
+
+impl IndexMut<&Iterator> for Iterator {
+    fn index_mut(&mut self, index: &Iterator) -> &mut Self::Output {
+        self.weight_to.entry(index.clone()).or_insert(0.0)
+    }
+}
+
+// impl Deref<&Iterator> for Iterator{
+//     type Target: i32;
+//     fn deref(&self) -> &Self::Target {
+//
+//     }
+// }
 
 impl Iterator{
     fn set_transform(&mut self, tf: Transform){
