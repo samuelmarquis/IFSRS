@@ -248,7 +248,8 @@ fn apply_transform(iter : Iterator, _p_input : P_State) -> vec3<f32>{
     let iter_depth : i32 = _p_input.iteration_depth;
 
     //transform snippets inserted on initialization
-    return vec3(
+    //@transforms
+    return vec3<f32>(
     	0.5 - random(),
     	0.5 - random(),
     	0.5 - random());
