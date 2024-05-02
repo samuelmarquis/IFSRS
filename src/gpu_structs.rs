@@ -5,7 +5,7 @@ pub trait Bufferable<'a> {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, bytemuck::Zeroable, bytemuck::Pod)]
 pub struct CameraStruct
 {
     pub view_proj_mat: [[f32; 4]; 4], //mat4x4<f32>
@@ -19,11 +19,8 @@ pub struct CameraStruct
     pub projection_type: i32,
 }
 
-unsafe impl bytemuck::Zeroable for CameraStruct {}
-unsafe impl bytemuck::Pod for CameraStruct {}
-
 #[repr(C)]
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, bytemuck::Zeroable, bytemuck::Pod)]
 pub struct Iterator {
     pub color_speed: f32,
     pub color_index: f32,
@@ -41,8 +38,24 @@ pub struct Iterator {
     pub padding2: i32,
 }
 
-unsafe impl bytemuck::Zeroable for Iterator {}
-unsafe impl bytemuck::Pod for Iterator {}
+impl Iterator {
+    pub fn new() -> Self {
+        Self {
+            color_speed: 1.0,
+            color_index: 1.0,
+            opacity: 1.0,
+            reset_prob: 1.0,
+            reset_alias: 1,
+            tf_id: 1,
+            real_params_index: 1,
+            vec3_params_index: 1,
+            shading_mode: 1,
+            tf_mix: 1.0,
+            tf_add: 1.0,
+            padding2: 0,
+        }
+    }
+}
 
 impl <'a> Bufferable<'a> for Iterator {
     fn desc() -> BufferDescriptor<'a> {
@@ -56,7 +69,7 @@ impl <'a> Bufferable<'a> for Iterator {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, bytemuck::Zeroable, bytemuck::Pod)]
 pub struct Settings {
     pub camera_params: CameraStruct,
 
@@ -76,8 +89,39 @@ pub struct Settings {
     pub filter_param2: f32,
 }
 
-unsafe impl bytemuck::Zeroable for Settings {}
-unsafe impl bytemuck::Pod for Settings {}
+impl Settings {
+    pub fn new() -> Self {
+        Self {
+            camera_params: CameraStruct {
+                view_proj_mat: [
+                    [0.1, 0.2, 0.3, 0.4],
+                    [0.0, 0.0, 0.0, 0.5],
+                    [0.0, 0.0, 0.0, 0.6],
+                    [6.9, 0.0, 0.0, 0.7],
+                ],
+                position: [0.0, 0.0, 0.0, 0.0],
+                forward: [0.0, 1.0, 0.0, 0.0],
+                focus_point: [0.0, 1.0, 0.0, 0.0],
+                aperture: 0.0,
+                focus_distance: 0.0,
+                depth_of_field: 0.0,
+                projection_type: 0,
+            },
+            fog_effect: 0.0,
+            itnum: 0,
+            palettecnt: 0,
+            mark_area_in_focus: 0,
+            warmup: 0,
+            entropy: 0.0,
+            max_filter_radius: 0,
+            padding0: 0,
+            filter_method: 0,
+            filter_param0: 0.0,
+            filter_param1: 0.0,
+            filter_param2: 0.0,
+        }
+    }
+}
 
 impl <'a> Bufferable<'a> for Settings {
     fn desc() -> BufferDescriptor<'a> {

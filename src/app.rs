@@ -261,7 +261,7 @@ impl eframe::App for Display<'_> {
         });
 
         let x = self.graphics.as_mut().unwrap();
-        x.render_to_screen(_frame.wgpu_render_state().unwrap());
+        x.render(_frame.wgpu_render_state().unwrap());
         egui::CentralPanel::default().frame(Frame::none()).show(ctx, |ui| {
             self.viewport.ui_content(ui, x.output_texture);
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {

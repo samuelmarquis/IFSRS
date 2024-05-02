@@ -12,5 +12,7 @@ mod ifs;
 mod gpu_structs;
 mod iterator;
 mod transform;
+mod pipeline_compute;
+mod pipeline_render;
 
 pub use app::Display;
