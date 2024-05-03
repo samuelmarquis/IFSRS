@@ -1,7 +1,19 @@
 #![warn(clippy::all, rust_2018_idioms)]
 #![allow(dead_code)]
 #![allow(unused_variables)]
+#![allow(non_snake_case)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
+
+mod app;
+mod rendering;
+mod editors;
+
+mod model;
+
+pub use app::Display;
+
+mod viewport;
+
 
 use eframe::Renderer::Wgpu;
 
@@ -22,10 +34,11 @@ fn main() -> eframe::Result<()> {
         renderer: Wgpu,
         ..Default::default()
     };
+
     eframe::run_native(
         "IFSRS but it's totally not just a compute shader that outputs a gradient",
         native_options,
-        Box::new(|cc| Box::new(IFSRS::Display::new(cc))),
+        Box::new(|cc| Box::new(Display::new(cc))),
     )
 }
 

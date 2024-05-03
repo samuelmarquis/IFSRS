@@ -1,19 +1,23 @@
-
 use std::path::Path;
+use std::sync::{Arc, mpsc, Mutex};
+
+use std::thread;
+use std::time::Duration;
 use bytemuck::cast_slice;
 use egui::{Frame, widgets, Window};
 use wgpu::{BufferAddress, FilterMode};
-use crate::rendering::GraphicsEngine;
+use crate::rendering::graphics_engine::GraphicsEngine;
 use crate::editors::response_curve_editor::ResponseCurveEditor;
 use crate::editors::palette_editor::PaletteEditor;
 use crate::editors::affine_editor::AffineEditor;
 use crate::editors::weight_graph_editor::WeightGraphEditor;
 use crate::editors::animation_editor::AnimationEditor;
 use crate::editors::automation_editor::AutomationEditor;
-use crate::gpu_structs::Parameters;
+use crate::rendering::gpu_structs::Parameters;
 use crate::viewport::Viewport;
-use crate::ifs::IFS;
-use crate::pipeline_render::Render;
+use crate::model::ifs::IFS;
+
+use crate::rendering::pipeline_render::Render;
 
 const UPPER_BOUND: u16 = u16::MAX; //for when we need an inclusive range on something that should have no upper bound
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
@@ -41,7 +45,6 @@ pub struct Display<'a> {
     animation_editor: AnimationEditor,
     automation_editor: AutomationEditor,
     viewport: Viewport,
-    graphics: Option<GraphicsEngine>,
 }
 
 impl Default for Display<'_> {
@@ -65,7 +68,6 @@ impl Default for Display<'_> {
             animation_editor: AnimationEditor::default(),
             automation_editor: AutomationEditor::default(),
             viewport: Viewport::default(),
-            graphics: None,
         }
     }
 }
@@ -73,9 +75,23 @@ impl Default for Display<'_> {
 impl Display<'_> {
     /// Called once before the first frame.
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+        let (tx,rx) = mpsc::sync_channel(1);
+
 
         let binding = &cc.wgpu_render_state;
-        let wgpu = binding.as_ref().expect("wgpu??");
+        let wgpu = binding.as_ref().expect("wgpu??").clone();
+        tx.send(()).unwrap();
+
+        let mut engine = GraphicsEngine::new_engine(&wgpu, tx);
+
+        thread::spawn(move || {
+            loop {
+                if rx.recv_timeout(Duration::from_millis(100)).is_ok() {
+                    engine.render(&wgpu);
+                }
+            }
+        });
+
 
         // Load previous app state (if any).
         // Note that you must enable the `persistence` feature for this to work.
@@ -84,7 +100,6 @@ impl Display<'_> {
         //}
 
         Self {
-            graphics: Some(GraphicsEngine::new_engine(wgpu)),
             ..Self::default()
         }
     }
@@ -223,19 +238,19 @@ impl eframe::App for Display<'_> {
             ui.separator();
             ui.horizontal(|ui|{
                 ui.label("Field of View: ");
-                ui.add(egui::DragValue::new(&mut self.ifs.fov).speed(0.5).clamp_range(1..=180));
+                ui.add(egui::DragValue::new(&mut self.ifs.camera.fov).speed(0.5).clamp_range(1..=180));
             });
             ui.horizontal(|ui|{
                 ui.label("Aperture: ");
-                ui.add(egui::DragValue::new(&mut self.ifs.aperture).speed(0.5).clamp_range(0..=UPPER_BOUND));
+                ui.add(egui::DragValue::new(&mut self.ifs.camera.aperture).speed(0.5).clamp_range(0..=UPPER_BOUND));
             });
             ui.horizontal(|ui|{
                 ui.label("Focus Distance: ");
-                ui.add(egui::DragValue::new(&mut self.ifs.fdist).speed(0.5));
+                ui.add(egui::DragValue::new(&mut self.ifs.camera.focus_distance).speed(0.5));
             });
             ui.horizontal(|ui|{
                 ui.label("Depth of Field: ");
-                ui.add(egui::DragValue::new(&mut self.ifs.dof).speed(0.5).clamp_range(0..=UPPER_BOUND));
+                ui.add(egui::DragValue::new(&mut self.ifs.camera.dof).speed(0.5).clamp_range(0..=UPPER_BOUND));
             });
             ui.separator();
             ui.horizontal(|ui|{
@@ -264,54 +279,55 @@ impl eframe::App for Display<'_> {
             });
         });
 
-        let x = self.graphics.as_mut().unwrap();
-        x.render(_frame.wgpu_render_state().unwrap());
-
         egui::CentralPanel::default().frame(Frame::none()).show(ctx, |ui| {
-            self.viewport.ui_content(ui, x.output_texture);
-
-            let width = self.viewport.width.floor() as u32;
-            let height = self.viewport.height.floor() as u32;
-
-            let wgpu = _frame.wgpu_render_state().unwrap();
-
-            wgpu.queue.write_buffer(&x.compute_pipeline.parameters_buffer, 0 as BufferAddress, cast_slice(&[Parameters {
-                seed: 69,
-                width,
-                height,
-                dispatch_cnt: 0,
-                reset_points_state: 0,
-                invocation_iters: 0,
-                padding_1: 0,
-                padding_2: 0,
-            }]));
-
-            if x.render_pipeline.texture.width() != width && width > 0
-                || x.render_pipeline.texture.height() != height && height > 0
-            {
-                let size = (width, height);
-                println!("resizing to: {:?}", size);
-
-                let wgpu = _frame.wgpu_render_state().unwrap();
-
-                let (render_state, shader, bg_layout, bg) = (
-                    wgpu,
-                    &x.shader,
-                    x.compute_pipeline.bind_group_layout.clone(),
-                    x.compute_pipeline.bind_group.clone()
-                );
-
-                x.render_pipeline.resize(wgpu, size);
-
-                let tex_id = wgpu.renderer.write().register_native_texture(&*wgpu.device, &x.render_pipeline.texture_view, FilterMode::Nearest);
-                x.output_texture = tex_id;
-            }
+            // let wgpu = _frame.wgpu_render_state().unwrap();
+            // println!("mutex 1 locked");
+            // let mut engine = self.graphics.as_mut().unwrap().lock().unwrap();
+            // engine.render(wgpu);
+            //
+            // self.viewport.ui_content(ui, engine.output_texture);
+            //
+            // let width = self.viewport.width.floor() as u32;
+            // let height = self.viewport.height.floor() as u32;
+            //
+            // let wgpu = _frame.wgpu_render_state().unwrap();
+            //
+            // wgpu.queue.write_buffer(&engine.compute_pipeline.parameters_buffer, 0 as BufferAddress, cast_slice(&[Parameters {
+            //     seed: 699912576,
+            //     width,
+            //     height,
+            //     dispatch_cnt: 0,
+            //     reset_points_state: 0,
+            //     invocation_iters: 0,
+            //     padding_1: 0,
+            //     padding_2: 0,
+            // }]));
+            //
+            // if engine.render_pipeline.texture.width() != width && width > 0
+            //     || engine.render_pipeline.texture.height() != height && height > 0
+            // {
+            //     let size = (width, height);
+            //     println!("resizing to: {:?}", size);
+            //
+            //     let wgpu = _frame.wgpu_render_state().unwrap();
+            //
+            //     let (render_state, shader, bg_layout, bg) = (
+            //         wgpu,
+            //         &engine.shader,
+            //         engine.compute_pipeline.bind_group_layout.clone(),
+            //         engine.compute_pipeline.bind_group.clone()
+            //     );
+            //
+            //     engine.render_pipeline.resize(wgpu, size);
+            //
+            //     let tex_id = wgpu.renderer.write().register_native_texture(&*wgpu.device, &engine.render_pipeline.texture_view, FilterMode::Nearest);
+            //     engine.output_texture = tex_id;
+            // }
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
                 egui::warn_if_debug_build(ui);
             });
         });
-
     }
 }
 

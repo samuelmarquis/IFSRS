@@ -1,6 +1,6 @@
 use wgpu::BufferDescriptor;
 
-use crate::camera::Camera;
+use crate::model::camera::Camera;
 
 pub trait Bufferable<'a> {
     fn desc() -> wgpu::BufferDescriptor<'a>;

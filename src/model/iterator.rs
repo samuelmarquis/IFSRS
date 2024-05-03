@@ -1,12 +1,13 @@
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
-use std::ops::{Index, IndexMut, Deref};
+use std::ops::{Index, IndexMut};
 use rand::random;
-use crate::ifs::IFS;
-use crate::transform::Transform;
+use serde::{Deserialize, Serialize};
+use crate::model::transform::Transform;
 
 
 #[derive(Clone)]
+#[derive(Serialize, Deserialize)]
 pub(crate) struct Iterator {
     pub id: i32,
     pub name: String,
@@ -28,8 +29,8 @@ impl Default for Iterator {
     fn default() -> Self {
         Self{
             id: random(),
-            name: String::from(""),
-            transform: Transform::default(),
+            name: String::from("cubetest"),
+            transform: Transform::cube(),
             real_params: HashMap::new(),
             vec3_params: HashMap::new(),
             base_weight: 1.0,

@@ -1,10 +1,14 @@
-use crate::gpu_structs::CameraStruct;
+use crate::rendering::gpu_structs::CameraStruct;
 use nalgebra::{Matrix4, Vector3, Quaternion, Point3, Vector4, convert};
+use serde::{Deserialize, Serialize};
 
+#[derive(Serialize, Deserialize)]
 pub enum ProjectionType {
     Perspective
 }
 
+
+#[derive(Serialize, Deserialize)]
 pub struct Camera {
     pub position: Point3<f64>,
     pub orientation: Quaternion<f64>,
@@ -14,8 +18,8 @@ pub struct Camera {
 
     pub fov: f64,
     pub aperture: f64,
-    pub focus_disance: f64,
-    pub depth_of_field: f64,
+    pub focus_distance: f64,
+    pub dof: f64,
 
     pub projection_type: ProjectionType,
 }
@@ -32,8 +36,8 @@ impl Default for Camera {
 
             fov: 60.0,
             aperture: 0.0,
-            focus_disance: 10.0,
-            depth_of_field: 0.25,
+            focus_distance: 10.0,
+            dof: 0.25,
             projection_type: ProjectionType::Perspective,
         }
     }
@@ -49,7 +53,7 @@ impl Camera {
     pub fn create_camera_struct(&self) -> CameraStruct {
         let pos: Vector4<f32> = convert(self.position.coords.push(1.0));
         let forward: Vector4<f32> = convert(self.forward_direction.push(1.0));
-        let focus: Vector4<f32> = convert((self.position + self.focus_disance * self.forward_direction).coords.push(0.0));
+        let focus: Vector4<f32> = convert((self.position + self.focus_distance * self.forward_direction).coords.push(0.0));
 
         CameraStruct {
             view_proj_mat: self.get_view_projection_matrix(),
@@ -57,8 +61,8 @@ impl Camera {
             forward: forward.into(),
             focus_point: focus.into(),
             aperture: self.aperture as f32,
-            focus_distance: self.focus_disance as f32,
-            depth_of_field: self.depth_of_field as f32,
+            focus_distance: self.focus_distance as f32,
+            depth_of_field: self.dof as f32,
             projection_type: 0, // TODO: never forget 🦅🦅🎇🎆
         }
     }
