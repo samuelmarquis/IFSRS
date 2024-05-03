@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::sync::Arc;
 use egui_wgpu::RenderState;
 use wgpu::*;
 use wgpu::TextureFormat::Rgba8UnormSrgb;
@@ -10,8 +10,8 @@ pub struct Render {
     pub texture: Texture,
     pub texture_view: TextureView,
     pub pipeline: RenderPipeline,
-    pub bind_group_layout: Rc<BindGroupLayout>,
-    pub bind_group: Rc<BindGroup>,
+    pub bind_group_layout: Arc<BindGroupLayout>,
+    pub bind_group: Arc<BindGroup>,
 }
 
 impl Render {
@@ -46,7 +46,7 @@ impl Render {
         //old_tex.destroy();
     }
 
-    pub fn init(wgpu: &RenderState, shader: &ShaderModule, bind_group_layout: Rc<BindGroupLayout>, bind_group: Rc<BindGroup>, texture_size: (u32, u32)) -> Self {
+    pub fn init(wgpu: &RenderState, shader: &ShaderModule, bind_group_layout: Arc<BindGroupLayout>, bind_group: Arc<BindGroup>, texture_size: (u32, u32)) -> Self {
         let (width, height) = texture_size;
 
         let draw_tex = wgpu.device.create_texture(&TextureDescriptor {

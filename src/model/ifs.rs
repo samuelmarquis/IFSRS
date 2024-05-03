@@ -1,8 +1,12 @@
 use std::ops::Index;
 use std::path::Iter;
-use crate::iterator::Iterator;
+use serde::{Deserialize, Serialize};
+use crate::model::camera::Camera;
+use crate::model::iterator::Iterator;
 
-pub struct IFS{
+
+#[derive(Serialize, Deserialize)]
+pub struct IFS {
     pub title: String,
     pub iterators: Vec<Iterator>,
 
@@ -14,11 +18,8 @@ pub struct IFS{
     pub gamma_thresh: f64, //strictly >= 0
     pub vibrancy: f64, //can be positive or negative
     pub background_color: [f32; 3],
-    //3d settings
-    pub fov: f64, //[1-180]
-    pub aperture: f64, // strictly >= 0
-    pub fdist: f64, //focus distance, can be positive or negative
-    pub dof: f64, // strictly >= 0
+    //camera settings struct
+    pub camera: Camera,
     //render settings
     pub entropy: f64, // chance to reset on each iteration
     pub fuse: u16, // usually 20, number of iterations to discard before plotting
@@ -26,7 +27,7 @@ pub struct IFS{
     pub pause_rendering: bool,
  }
 
-impl Default for IFS{
+impl Default for IFS {
     fn default() -> Self {
         Self {
             title: String::from("Untitled"),
@@ -38,10 +39,7 @@ impl Default for IFS{
             gamma_thresh: 0.0,
             vibrancy: 1.0,
             background_color: [0.0, 0.0, 0.0],
-            fov: 60.0,
-            aperture: 0.0,
-            fdist: 10.0,
-            dof: 0.25,
+            camera: Camera::default(),
             entropy: 0.01,
             fuse: 20,
             stopping_sl: 15.0,

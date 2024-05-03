@@ -1,13 +1,15 @@
 use std::mem::size_of;
 use std::rc::Rc;
+use std::sync::Arc;
 use egui_wgpu::RenderState;
 use wgpu::{BindGroupEntry, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource,
            BufferAddress, BufferDescriptor, BufferUsages, ComputePipelineDescriptor,
            PipelineLayoutDescriptor, ShaderStages};
 use wgpu::BufferBindingType::{Storage, Uniform};
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
-use crate::gpu_structs::{Settings, Iterator, Bufferable};
+use crate::rendering::gpu_structs::{Settings, Iterator, Bufferable};
 use wgpu::*;
+use crate::rendering::graphics_engine::*;
 
 pub const WORKGROUP_SIZE: usize = 256;
 
@@ -23,8 +25,8 @@ pub struct Compute {
     pub parameters_buffer: Buffer,
     pub next_sample_buffer: Buffer,
 
-    pub bind_group_layout: Rc<BindGroupLayout>,
-    pub bind_group: Rc<BindGroup>,
+    pub bind_group_layout: Arc<BindGroupLayout>,
+    pub bind_group: Arc<BindGroup>,
 
     pub compute_pipeline: ComputePipeline,
 }
@@ -33,13 +35,13 @@ impl Compute {
     pub fn init(wgpu: &RenderState, shader: &ShaderModule) -> Self {
         let histogram_buffer = wgpu.device.create_buffer_init(&BufferInitDescriptor {
             label: Some("Histogram buffer"),
-            contents: &vec![0u8; crate::rendering::HISTOGRAM_WIDTH * crate::rendering::HISTOGRAM_HEIGHT * size_of::<[f32;4]>()], // assuming RGBA8?
+            contents: &vec![0u8; HISTOGRAM_WIDTH * HISTOGRAM_HEIGHT * size_of::<[f32;4]>()], // assuming RGBA8?
             usage: BufferUsages::STORAGE,
         });
 
         let state_buffer = wgpu.device.create_buffer_init(&BufferInitDescriptor {
             label: None,
-            contents: &vec![0u8; size_of::<f32>() * 8 * crate::rendering::WORKGROUP_SIZE],
+            contents: &vec![0u8; size_of::<f32>() * 8 * WORKGROUP_SIZE],
             usage: BufferUsages::STORAGE
         });
 
@@ -52,35 +54,35 @@ impl Compute {
         let iterators_buffer = wgpu.device.create_buffer(&BufferDescriptor {
             label: None,
             usage: wgpu::BufferUsages::UNIFORM,
-            size: crate::rendering::MAX_ITERATORS as BufferAddress * crate::gpu_structs::Iterator::desc().size,
+            size: MAX_ITERATORS as BufferAddress * crate::rendering::gpu_structs::Iterator::desc().size,
             mapped_at_creation: false,
         });
 
         let alias_tables_buffer = wgpu.device.create_buffer(&BufferDescriptor {
             label: None,
             usage: BufferUsages::UNIFORM,
-            size: (crate::rendering::MAX_ITERATORS * size_of::<[f32; 4]>()) as BufferAddress,
+            size: (MAX_ITERATORS * size_of::<[f32; 4]>()) as BufferAddress,
             mapped_at_creation: false,
         });
 
         let palette_buffer = wgpu.device.create_buffer(&BufferDescriptor {
             label: None,
             usage: BufferUsages::UNIFORM,
-            size: (crate::rendering::MAX_PALETTE_COLORS * size_of::<[f32; 4]>()) as BufferAddress,
+            size: (MAX_PALETTE_COLORS * size_of::<[f32; 4]>()) as BufferAddress,
             mapped_at_creation: false,
         });
 
         let real_params_buffer = wgpu.device.create_buffer(&BufferDescriptor {
             label: None,
             usage: BufferUsages::UNIFORM,
-            size: (16 * crate::rendering::MAX_PARAMS) as BufferAddress,
+            size: (16 * MAX_PARAMS) as BufferAddress,
             mapped_at_creation: false,
         });
 
         let vec3_params_buffer = wgpu.device.create_buffer(&BufferDescriptor {
             label: None,
             usage: BufferUsages::UNIFORM,
-            size: (16 * crate::rendering::MAX_PARAMS) as BufferAddress,
+            size: (16 * MAX_PARAMS) as BufferAddress,
             mapped_at_creation: false,
         });
 
@@ -280,8 +282,8 @@ impl Compute {
             parameters_buffer,
             next_sample_buffer,
 
-            bind_group: Rc::new(bind_group),
-            bind_group_layout: Rc::new(bind_group_layout),
+            bind_group: Arc::new(bind_group),
+            bind_group_layout: Arc::new(bind_group_layout),
 
             compute_pipeline,
         }
