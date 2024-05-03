@@ -12,8 +12,9 @@ use crate::pipeline_render::Render;
 
 
 pub struct GraphicsEngine {
-    compute_pipeline: Compute,
-    render_pipeline: Render,
+    pub compute_pipeline: Compute,
+    pub render_pipeline: Render,
+    pub shader: ShaderModule,
 
     pub(crate) output_texture: TextureId
 }
@@ -35,7 +36,9 @@ impl GraphicsEngine {
         let shader = wgpu.device.create_shader_module(shader_desc);
 
         let compute = Compute::init(wgpu, &shader);
-        let render = Render::init(wgpu, &shader);
+
+        // TODO: unfuck that lol
+        let render = Render::init(wgpu, &shader, compute.bind_group_layout.clone(), compute.bind_group.clone(), (1920, 1080));
 
         let tex_id = wgpu.renderer.write().register_native_texture(&*wgpu.device, &render.texture_view, FilterMode::Nearest);
 
@@ -43,6 +46,7 @@ impl GraphicsEngine {
             compute_pipeline: compute,
             render_pipeline: render,
             output_texture: tex_id,
+            shader,
         }
     }
 

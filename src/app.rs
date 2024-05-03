@@ -1,15 +1,19 @@
 
 use std::path::Path;
+use bytemuck::cast_slice;
 use egui::{Frame, widgets, Window};
+use wgpu::{BufferAddress, FilterMode};
 use crate::rendering::GraphicsEngine;
-use crate::response_curve_editor::ResponseCurveEditor;
-use crate::palette_editor::PaletteEditor;
-use crate::affine_editor::AffineEditor;
-use crate::weight_graph_editor::WeightGraphEditor;
-use crate::animation_editor::AnimationEditor;
-use crate::automation_editor::AutomationEditor;
+use crate::editors::response_curve_editor::ResponseCurveEditor;
+use crate::editors::palette_editor::PaletteEditor;
+use crate::editors::affine_editor::AffineEditor;
+use crate::editors::weight_graph_editor::WeightGraphEditor;
+use crate::editors::animation_editor::AnimationEditor;
+use crate::editors::automation_editor::AutomationEditor;
+use crate::gpu_structs::Parameters;
 use crate::viewport::Viewport;
 use crate::ifs::IFS;
+use crate::pipeline_render::Render;
 
 const UPPER_BOUND: u16 = u16::MAX; //for when we need an inclusive range on something that should have no upper bound
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
@@ -262,8 +266,47 @@ impl eframe::App for Display<'_> {
 
         let x = self.graphics.as_mut().unwrap();
         x.render(_frame.wgpu_render_state().unwrap());
+
         egui::CentralPanel::default().frame(Frame::none()).show(ctx, |ui| {
             self.viewport.ui_content(ui, x.output_texture);
+
+            let width = self.viewport.width.floor() as u32;
+            let height = self.viewport.height.floor() as u32;
+
+            let wgpu = _frame.wgpu_render_state().unwrap();
+
+            wgpu.queue.write_buffer(&x.compute_pipeline.parameters_buffer, 0 as BufferAddress, cast_slice(&[Parameters {
+                seed: 69,
+                width,
+                height,
+                dispatch_cnt: 0,
+                reset_points_state: 0,
+                invocation_iters: 0,
+                padding_1: 0,
+                padding_2: 0,
+            }]));
+
+            if x.render_pipeline.texture.width() != width && width > 0
+                || x.render_pipeline.texture.height() != height && height > 0
+            {
+                let size = (width, height);
+                println!("resizing to: {:?}", size);
+
+                let wgpu = _frame.wgpu_render_state().unwrap();
+
+                let (render_state, shader, bg_layout, bg) = (
+                    wgpu,
+                    &x.shader,
+                    x.compute_pipeline.bind_group_layout.clone(),
+                    x.compute_pipeline.bind_group.clone()
+                );
+
+                x.render_pipeline.resize(wgpu, size);
+
+                let tex_id = wgpu.renderer.write().register_native_texture(&*wgpu.device, &x.render_pipeline.texture_view, FilterMode::Nearest);
+                x.output_texture = tex_id;
+            }
+
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
                 egui::warn_if_debug_build(ui);
             });

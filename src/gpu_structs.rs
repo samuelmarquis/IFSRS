@@ -1,7 +1,23 @@
 use wgpu::BufferDescriptor;
 
+use crate::camera::Camera;
+
 pub trait Bufferable<'a> {
     fn desc() -> wgpu::BufferDescriptor<'a>;
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Zeroable, bytemuck::Pod)]
+pub struct Parameters {
+    pub seed: u32,
+    pub width: u32,
+    pub height: u32,
+    pub dispatch_cnt: i32,
+
+    pub reset_points_state: i32,
+    pub invocation_iters: i32,
+    pub padding_1: u32,
+    pub padding_2: u32,
 }
 
 #[repr(C)]
@@ -17,6 +33,12 @@ pub struct CameraStruct
     pub focus_distance: f32,
     pub depth_of_field: f32,
     pub projection_type: i32,
+}
+
+impl Default for CameraStruct {
+    fn default() -> Self {
+        Camera::default().create_camera_struct()
+    }
 }
 
 #[repr(C)]
@@ -92,21 +114,7 @@ pub struct Settings {
 impl Settings {
     pub fn new() -> Self {
         Self {
-            camera_params: CameraStruct {
-                view_proj_mat: [
-                    [0.1, 0.2, 0.3, 0.4],
-                    [0.0, 0.0, 0.0, 0.5],
-                    [0.0, 0.0, 0.0, 0.6],
-                    [6.9, 0.0, 0.0, 0.7],
-                ],
-                position: [0.0, 0.0, 0.0, 0.0],
-                forward: [0.0, 1.0, 0.0, 0.0],
-                focus_point: [0.0, 1.0, 0.0, 0.0],
-                aperture: 0.0,
-                focus_distance: 0.0,
-                depth_of_field: 0.0,
-                projection_type: 0,
-            },
+            camera_params: CameraStruct::default(),
             fog_effect: 0.0,
             itnum: 0,
             palettecnt: 0,

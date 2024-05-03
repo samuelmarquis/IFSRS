@@ -1,8 +1,3 @@
-// Vertex shader
-struct VertexOutput {
-    @builtin(position) clip_position: vec4<f32>,
-};
-
 const PI: f32  = 3.14159265358f;
 const TAU: f32 = 6.28318530718f;
 const DEGTORAD: f32 = 0.0174532925f;
@@ -69,8 +64,8 @@ struct Settings {
 
 struct Parameters {
     seed: u32,
-    width: i32,
-    height: i32,
+    width: u32,
+    height: u32,
     dispatch_cnt: i32,
 
     reset_points_state: i32,
@@ -90,19 +85,19 @@ struct RealParam {
 
 @group(0) @binding(1) var<storage, read_write> state: array<P_State>;
 
-@group(0) @binding(2) var<uniform> settings: Settings;
+@group(0) @binding(2) var<uniform> settings: Settings; // filled from cpu
 
-@group(0) @binding(3) var<uniform> iterators: array<Iterator, MAX_ITERATORS>;
+@group(0) @binding(3) var<uniform> iterators: array<Iterator, MAX_ITERATORS>;  // filled from cpu
 
-@group(0) @binding(4) var<uniform> alias_tables: array<vec4<f32>, MAX_ITERATORS>;
+@group(0) @binding(4) var<uniform> alias_tables: array<vec4<f32>, MAX_ITERATORS>; // filled from cpu
 
-@group(0) @binding(5) var<uniform> palette: array<vec4<f32>, MAX_PALETTE_COLORS>;
+@group(0) @binding(5) var<uniform> palette: array<vec4<f32>, MAX_PALETTE_COLORS>; // filled from cpu
 
-@group(0) @binding(6) var<uniform> real_params: array<RealParam, MAX_PARAMS>;
+@group(0) @binding(6) var<uniform> real_params: array<RealParam, MAX_PARAMS>; // filled from cpu
 
-@group(0) @binding(7) var<uniform> vec3_params: array<vec4<f32>, MAX_PARAMS>;
+@group(0) @binding(7) var<uniform> vec3_params: array<vec4<f32>, MAX_PARAMS>; // filled from cpu
 
-@group(0) @binding(8) var<uniform> parameters: Parameters;
+@group(0) @binding(8) var<uniform> parameters: Parameters; // filled from cpu
 
 @group(0) @binding(9) var<storage, read_write> next_sample: u32;
 
@@ -252,9 +247,8 @@ fn apply_transform(iter : Iterator, _p_input : P_State) -> vec3<f32>{
     return vec3<f32>(
     	0.5 - random(),
     	0.5 - random(),
-    	0.5 - random());
-
-    return p;
+    	0.5 - random()
+    );
 }
 
 // returns color index
@@ -464,119 +458,125 @@ fn Mitchell_Netravali(x : f32) -> f32
 }
 
 fn accumulate_hit(proj: vec2<i32>, color: vec4<f32>) {
-	let ipx = proj.x + proj.y * parameters.width;//pixel index
+	let ipx = proj.x + proj.y * i32(parameters.width);//pixel index
 	histogram[ipx] += color;
 }
 
 
 //TODO -- INLINE RANDOM
-@compute @workgroup_size(64)
+@compute @workgroup_size(64) // 64, 1, 1
 fn main(
     @builtin(global_invocation_id) id: vec3<u32>
 ) {
-	let gid = id.x;
+    let r = vec4(random(), random(), random(), random());
+    let i = u32(random() % (1920 * 1080));
+    let x = f32(id.x) / (64*256);
+    histogram[id.x] = vec4(x, x, x, 1.0);
 
-	var p : P_State;
-	if parameters.reset_points_state == 1 { p = reset_state(); }
-	else { p = state[gid]; }
-
-	for (var i = 0; i < parameters.invocation_iters; i++)
-	{
-		//pick a random xaos weighted Transform index
-		var r_index: i32 = -1;
-		let r: f32 = random();
-		r_index = alias_sample_xaos(u32(p.iterator_index), r);
-		if (       	  	  r_index == -1 || //no outgoing weight
-                p.iteration_depth == -1 || //invalid point position
-			random() < settings.entropy) //chance to reset by entropy
-		{//reset if invalid
-			p = reset_state();
-		}
-		else {
-			p.iterator_index = r_index;
-		}
-
-		let selected_iterator : Iterator = iterators[p.iterator_index];
-
-		let p0_pos : vec4<f32> = p.pos;
-		let p_ret  : vec3<f32> = apply_transform(selected_iterator, p);
-		let swizzler = mix(p0_pos.xyz, p_ret + p0_pos.xyz * selected_iterator.tf_add, selected_iterator.tf_mix);
-		p.pos.x = swizzler.x;
-		p.pos.y = swizzler.y;
-		p.pos.z = swizzler.z;
-
-        if (dot(p.pos.xyz, p.pos.xyz) == 0.0
-//            any(isinf(p.pos.xyz)) || //at infinity
-//            any(isnan(p.pos.xyz)) //reset by plugin
-        ) { //check if position is invalid
-            p.iteration_depth = -1;//means invalid
-            continue;
-        }
-
-		apply_coloring(selected_iterator, p0_pos, p.pos, p.color_index);
-		p.iteration_depth++;
-
-		if (p.iteration_depth < i32(settings.warmup) || selected_iterator.opacity == 0.0) {
-			continue;//avoid useless projection and histogram writes
-        }
-
-		let projf : vec2<f32> = project(settings.camera, p.pos.xyz);
-        if (projf.x == -2.0) {
-            continue;//out of frame
-        }
-        let proj  = vec2<i32>(i32(round(projf.x)), i32(round(projf.y)));
-
-		var color = vec4(getPaletteColor(p.color_index), selected_iterator.opacity);
-
-		//TODO: this is the same as dof
-		let defocus = max(0.0, abs(dot(p.pos.xyz - settings.camera.focus_point.xyz, -settings.camera.forward.xyz)) - settings.camera.depth_of_field);
-
-		if (settings.fog_effect > 0.0f) {
-		    //optional fog effect
-			var fog_mask : f32 = 2.0*(1.0 - 1.0 / (1.0 + pow(1.0 + settings.fog_effect, - defocus + settings.camera.depth_of_field)));
-			fog_mask = clamp(fog_mask, 0.0, 1.0);
-			color.w *= fog_mask;
-		}
-		if (color.w == 0.0) {
-			continue;//avoid useless histogram writes
-        }
-		//mark area in focus with red
-		if (settings.mark_area_in_focus != 0 && defocus < 0.01) {
-			color = vec4(1.0, 0.0, 0.0, 2.0);
-		}
-        color.x *= color.w;
-        color.y *= color.w;
-        color.z *= color.w;
-
-		if (settings.max_filter_radius > 0/* && proj.x>width/2*/) { //max filter radius <= aperture?
-			//TODO: determine filter_radius based on settings.filter_method
-			let filter_radius = i32(settings.max_filter_radius);
-
-			//for (int ax = -filter_radius; ax <= filter_radius; ax++)
-			let ax : i32 = -filter_radius + i32(random()) * 2 * filter_radius;
-
-            //for (int ay = -filter_radius; ay <= filter_radius; ay++)
-            let ay : i32 = -filter_radius + i32(random()) * 2 * filter_radius;
-
-            var nb: vec2<i32> = proj + vec2<i32>(ax, ay);
-            let pd: f32 = f32(distance(vec2<f32>(nb), projf));
-
-            //TODO: use settings.filter_method to pick one
-            //float aw = max(0.0, 1.0-pd);
-            //float aw = max(0.0, Lanczos(pd, 2));
-            let aw: f32 = f32(max(0.0, Mitchell_Netravali(pd)) * f32(filter_radius * filter_radius * 2 * 2));
-            if (settings.camera.projection_type == 1){
-                nb.x = nb.x % parameters.width;
-            }
-            if (nb.x >= 0 && nb.x < parameters.width && nb.y >= 0 && nb.y < parameters.height) {
-                accumulate_hit(nb, aw * color);
-            }
-		} else {
-			accumulate_hit(proj, color);
-		}
-
-	}
-	state[gid] = p;
+//
+//	let gid = id.x;
+//
+//	var p : P_State;
+//	if parameters.reset_points_state == 1 { p = reset_state(); }
+//	else { p = state[gid]; }
+//
+//	for (var i = 0; i < parameters.invocation_iters; i++)
+//	{
+//		//pick a random xaos weighted Transform index
+//		var r_index: i32 = -1;
+//		let r: f32 = random();
+//		r_index = alias_sample_xaos(u32(p.iterator_index), r);
+//		if (       	  	  r_index == -1 || //no outgoing weight
+//                p.iteration_depth == -1 || //invalid point position
+//			random() < settings.entropy) //chance to reset by entropy
+//		{//reset if invalid
+//			p = reset_state();
+//		}
+//		else {
+//			p.iterator_index = r_index;
+//		}
+//
+//		let selected_iterator : Iterator = iterators[p.iterator_index];
+//
+//		let p0_pos : vec4<f32> = p.pos;
+//		let p_ret  : vec3<f32> = apply_transform(selected_iterator, p);
+//		let swizzler = mix(p0_pos.xyz, p_ret + p0_pos.xyz * selected_iterator.tf_add, selected_iterator.tf_mix);
+//		p.pos.x = swizzler.x;
+//		p.pos.y = swizzler.y;
+//		p.pos.z = swizzler.z;
+//
+//        if (dot(p.pos.xyz, p.pos.xyz) == 0.0
+////            any(isinf(p.pos.xyz)) || //at infinity
+////            any(isnan(p.pos.xyz)) //reset by plugin
+//        ) { //check if position is invalid
+//            p.iteration_depth = -1;//means invalid
+//            continue;
+//        }
+//
+//		apply_coloring(selected_iterator, p0_pos, p.pos, p.color_index);
+//		p.iteration_depth++;
+//
+//		if (p.iteration_depth < i32(settings.warmup) || selected_iterator.opacity == 0.0) {
+//			continue;//avoid useless projection and histogram writes
+//        }
+//
+//		let projf : vec2<f32> = project(settings.camera, p.pos.xyz);
+//        if (projf.x == -2.0) {
+//            continue;//out of frame
+//        }
+//        let proj  = vec2<i32>(i32(round(projf.x)), i32(round(projf.y)));
+//
+//		var color = vec4(getPaletteColor(p.color_index), selected_iterator.opacity);
+//
+//		//TODO: this is the same as dof
+//		let defocus = max(0.0, abs(dot(p.pos.xyz - settings.camera.focus_point.xyz, -settings.camera.forward.xyz)) - settings.camera.depth_of_field);
+//
+//		if (settings.fog_effect > 0.0f) {
+//		    //optional fog effect
+//			var fog_mask : f32 = 2.0*(1.0 - 1.0 / (1.0 + pow(1.0 + settings.fog_effect, - defocus + settings.camera.depth_of_field)));
+//			fog_mask = clamp(fog_mask, 0.0, 1.0);
+//			color.w *= fog_mask;
+//		}
+//		if (color.w == 0.0) {
+//			continue;//avoid useless histogram writes
+//        }
+//		//mark area in focus with red
+//		if (settings.mark_area_in_focus != 0 && defocus < 0.01) {
+//			color = vec4(1.0, 0.0, 0.0, 2.0);
+//		}
+//        color.x *= color.w;
+//        color.y *= color.w;
+//        color.z *= color.w;
+//
+//		if (settings.max_filter_radius > 0/* && proj.x>width/2*/) { //max filter radius <= aperture?
+//			//TODO: determine filter_radius based on settings.filter_method
+//			let filter_radius = i32(settings.max_filter_radius);
+//
+//			//for (int ax = -filter_radius; ax <= filter_radius; ax++)
+//			let ax : i32 = -filter_radius + i32(random()) * 2 * filter_radius;
+//
+//            //for (int ay = -filter_radius; ay <= filter_radius; ay++)
+//            let ay : i32 = -filter_radius + i32(random()) * 2 * filter_radius;
+//
+//            var nb: vec2<i32> = proj + vec2<i32>(ax, ay);
+//            let pd: f32 = f32(distance(vec2<f32>(nb), projf));
+//
+//            //TODO: use settings.filter_method to pick one
+//            //float aw = max(0.0, 1.0-pd);
+//            //float aw = max(0.0, Lanczos(pd, 2));
+//            let aw: f32 = f32(max(0.0, Mitchell_Netravali(pd)) * f32(filter_radius * filter_radius * 2 * 2));
+//            if (settings.camera.projection_type == 1){
+//                nb.x = nb.x % i32(parameters.width);
+//            }
+//            if (nb.x >= 0 && nb.x < i32(parameters.width) && nb.y >= 0 && nb.y < i32(parameters.height)) {
+//                accumulate_hit(nb, aw * color);
+//            }
+//		} else {
+//			accumulate_hit(proj, color);
+//		}
+//
+//	}
+//	state[gid] = p;
 }
 
 // .....................................................
@@ -592,15 +592,15 @@ const points: array<vec4<f32>, 3> = array<vec4<f32>, 3>( //do we need the generi
 @vertex
 fn vs_main(
     @builtin(vertex_index) idx: u32,
-) -> VertexOutput {
-    var out: VertexOutput;
+) -> @builtin(position) vec4<f32> {
+    var out: vec4<f32>;
 
     if idx == 0 {
-        out.clip_position = vec4<f32>(-1.0, -3.0, 0.0, 1.0); // Bottom-left
+        out = vec4<f32>(-1.0, -3.0, 0.0, 1.0); // Bottom-left
     } else if idx == 1 {
-        out.clip_position = vec4<f32>(3.0, 1.0, 0.0, 1.0); // Right corner
+        out = vec4<f32>(3.0, 1.0, 0.0, 1.0); // Right corner
     } else if idx == 2 {
-        out.clip_position = vec4<f32>(-1.0, 1.0, 0.0, 1.0); // Top-left
+        out = vec4<f32>(-1.0, 1.0, 0.0, 1.0); // Top-left
     }
 
 	return out;
@@ -608,8 +608,10 @@ fn vs_main(
 
 
 @fragment
-fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+fn fs_main(@builtin(position) coord_in: vec4<f32>) -> @location(0) vec4<f32> {
     // TODO: render from a texture
-    return vec4<f32>(0.3, 0.2, 0.1, 1.0);
+    var idx = coord_in.x;
+    idx += coord_in.y * f32(parameters.width);
 
+    return histogram[u32(floor(idx))];
 }
