@@ -23,7 +23,7 @@ fn main() -> eframe::Result<()> {
         ..Default::default()
     };
     eframe::run_native(
-        "IFSRS but it's totally not just a compute shader that doesn't connect to anything",
+        "IFSRS but it's totally not just a compute shader that outputs a gradient",
         native_options,
         Box::new(|cc| Box::new(IFSRS::Display::new(cc))),
     )

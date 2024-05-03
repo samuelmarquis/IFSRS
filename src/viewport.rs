@@ -10,6 +10,8 @@ pub struct Viewport{
     pub(crate) drag_delta: Vec2,
     pub(crate) camera_target: Vector3<f32>,
     pub(crate) pos_delta: Vector3<f32>,
+    pub(crate) width: f32,
+    pub(crate) height: f32,
 }
 
 impl Default for Viewport {
@@ -18,6 +20,8 @@ impl Default for Viewport {
             drag_delta: vec2(0.0,0.0),
             pos_delta: Vector3::new(0.0, 0.0, 0.0), // origin
             camera_target: Vector3::new(1.0, 0.0, 0.0), //looking in the X direction (I hope)
+            width: 1.0,
+            height: 1.0
         }
     }
 }
@@ -37,9 +41,9 @@ impl Viewport {
             rect,
         );
 
-        let xwidth = rect.max[0] - rect.min[0];
-        let ywidth = rect.max[1] - rect.min[1];
-        let scale : Vec2 = vec2(1.0/xwidth, 1.0/ywidth);
+        self.width = rect.max[0] - rect.min[0];
+        self.height = rect.max[1] - rect.min[1];
+        let scale : Vec2 = vec2(1.0/ self.width, 1.0/ self.height);
 
         self.drag_delta += response.drag_delta() * scale;
 

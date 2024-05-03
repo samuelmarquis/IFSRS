@@ -1,6 +1,6 @@
 use egui::epaint::{PathShape};
 use egui::*;
-use crate::response_curve_editor::Curve::Overall;
+use crate::editors::response_curve_editor::Curve::Overall;
 
 #[derive(Debug, PartialEq)]
 enum Curve{

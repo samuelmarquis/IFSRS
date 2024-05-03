@@ -1,4 +1,5 @@
 use std::mem::size_of;
+use std::rc::Rc;
 use egui_wgpu::RenderState;
 use wgpu::{BindGroupEntry, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource,
            BufferAddress, BufferDescriptor, BufferUsages, ComputePipelineDescriptor,
@@ -22,8 +23,8 @@ pub struct Compute {
     pub parameters_buffer: Buffer,
     pub next_sample_buffer: Buffer,
 
-    pub bind_group_layout: BindGroupLayout,
-    pub bind_group: BindGroup,
+    pub bind_group_layout: Rc<BindGroupLayout>,
+    pub bind_group: Rc<BindGroup>,
 
     pub compute_pipeline: ComputePipeline,
 }
@@ -85,7 +86,7 @@ impl Compute {
 
         let parameters_buffer = wgpu.device.create_buffer(&BufferDescriptor {
             label: None,
-            usage: BufferUsages::UNIFORM,
+            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
             size: 32 as BufferAddress,
             mapped_at_creation: false,
         });
@@ -279,8 +280,8 @@ impl Compute {
             parameters_buffer,
             next_sample_buffer,
 
-            bind_group,
-            bind_group_layout,
+            bind_group: Rc::new(bind_group),
+            bind_group_layout: Rc::new(bind_group_layout),
 
             compute_pipeline,
         }
