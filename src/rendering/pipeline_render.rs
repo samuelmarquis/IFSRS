@@ -9,6 +9,7 @@ pub struct Render {
     pub height: u32,
     pub texture: Texture,
     pub texture_view: TextureView,
+    pub pipeline_layout: PipelineLayout,
     pub pipeline: RenderPipeline,
     pub bind_group_layout: Arc<BindGroupLayout>,
     pub bind_group: Arc<BindGroup>,
@@ -71,9 +72,31 @@ impl Render {
                 push_constant_ranges: &[],
             });
 
-        let render_pipeline = wgpu.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        let render_pipeline = Self::create_pipeline_with(wgpu, &render_pipeline_layout, shader);
+
+        let tex_view = draw_tex.create_view(
+            &TextureViewDescriptor {
+                format: Some(Rgba8UnormSrgb),
+                ..Default::default()
+            }
+        );
+
+        Self {
+            width,
+            height,
+            texture: draw_tex,
+            texture_view: tex_view,
+            pipeline_layout: render_pipeline_layout,
+            pipeline: render_pipeline,
+            bind_group,
+            bind_group_layout,
+        }
+    }
+
+    pub fn create_pipeline_with(wgpu: &RenderState, layout: &PipelineLayout, shader: &ShaderModule) -> RenderPipeline {
+        wgpu.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Render Pipeline"),
-            layout: Some(&render_pipeline_layout),
+            layout: Some(&layout),
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: "vs_main", // 1.
@@ -102,29 +125,17 @@ impl Render {
                 entry_point: "fs_main",
                 targets: &[Some(wgpu::ColorTargetState { // 4.
                     format: Rgba8UnormSrgb,
-                    blend: Some(wgpu::BlendState::REPLACE),
+                    blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
             }),
             multiview: None,
-        });
+        })
+    }
 
-        let tex_view = draw_tex.create_view(
-            &TextureViewDescriptor {
-                format: Some(Rgba8UnormSrgb),
-                ..Default::default()
-            }
-        );
 
-        Self {
-            width,
-            height,
-            texture: draw_tex,
-            texture_view: tex_view,
-            pipeline: render_pipeline,
-            bind_group,
-            bind_group_layout,
-        }
+    pub fn recreate_pipeline_with_shader(&mut self, wgpu: &RenderState, shader: &ShaderModule) {
+        self.pipeline = Self::create_pipeline_with(wgpu, &self.pipeline_layout, shader);
     }
 
     pub fn encode_commands(&self, wgpu: &RenderState) -> CommandBuffer {

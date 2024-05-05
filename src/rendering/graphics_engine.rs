@@ -1,9 +1,12 @@
 use std::borrow::Cow;
+use std::fs;
 use std::iter::Iterator;
 use std::mem::size_of;
 use std::num::NonZeroU32;
 use std::path::Iter;
 use std::sync::mpsc::{Receiver, SyncSender, TryRecvError};
+use std::thread::sleep;
+use std::time::Duration;
 use egui::TextureId;
 use egui_wgpu::RenderState;
 use futures::stream::iter;
@@ -26,6 +29,8 @@ pub struct GraphicsEngine {
     work_status_tx: SyncSender<()>,
     ifs_rx: Receiver<IFS>,
     app_tx: SyncSender<TextureId>,
+    dispatch_count: i32,
+    model: IFS,
     // pub(crate) output_texture: TextureId
 }
 
@@ -64,32 +69,63 @@ impl GraphicsEngine {
             work_status_tx,
             ifs_rx,
             app_tx,
+            dispatch_count: 0,
+            model: Default::default(),
         }
     }
 
     pub fn render(&mut self, wgpu: &RenderState) {
         match self.ifs_rx.try_recv() {
-            Ok(model) => {
+            Ok(mut model) => {
                 println!("updating model");
-                self.update_model(wgpu, &model);
+                self.update_model(wgpu, &mut model);
+                self.model = model;
             }
             Err(e) => {}
         }
 
+        // println!("dispatch: {}", self.dispatch_count);
+        //
+
+        wgpu.queue.write_buffer(&self.compute_pipeline.parameters_buffer, 0 as BufferAddress, bytemuck::cast_slice(&[ParametersStruct {
+            seed: 699912576,
+            width: self.model.width,
+            height: self.model.height,
+            dispatch_cnt: self.dispatch_count,
+            reset_points_state: 0, // TODO: ??????
+            invocation_iters: 512,
+            padding_1: 0,
+            padding_2: 0,
+        }]));
+
+        self.dispatch_count += 1;
+
         let compute_cmd = self.compute_pipeline.encode_commands(wgpu);
         let render_cmd = self.render_pipeline.encode_commands(wgpu);
 
-        // dispatching shaders
+        // let moved_tx = self.work_status_tx.clone();
+        // moved_tx.send(()).unwrap();
+        // wgpu.queue.on_submitted_work_done(move || moved_tx.send(()).unwrap());
         wgpu.queue.submit([compute_cmd, render_cmd]);
-
-        let moved_tx = self.work_status_tx.clone();
-
-        wgpu.queue.on_submitted_work_done(move || moved_tx.send(()).unwrap() )
+        sleep(Duration::from_millis(8));
+        // TODO: determine sleep time
+        self.work_status_tx.send(()).unwrap();
     }
 
-    fn update_model(&mut self, wgpu: &RenderState, model: &IFS) {
-        self.reset_histogram(wgpu, model);
+    fn update_model(&mut self, wgpu: &RenderState, model: &mut IFS) {
+        // println!("{:?}", model.camera.create_camera_struct().view_proj_mat);
+
+        if let Some(histogram_buffer) = self.reset_histogram(wgpu, model) {
+            self.compute_pipeline.histogram_buffer = histogram_buffer;
+            self.compute_pipeline.update_bind_group(wgpu);
+            self.render_pipeline.bind_group = self.compute_pipeline.bind_group.clone();
+        }
+
+        // building the iterators creates a new shader
         self.build_iterators(wgpu, model);
+
+        self.compute_pipeline.recreate_pipeline_with_shader(wgpu, &self.shader);
+        self.render_pipeline.recreate_pipeline_with_shader(wgpu, &self.shader);
 
         // clear pstates
         wgpu.queue.write_buffer(&self.compute_pipeline.state_buffer, 0 as BufferAddress, &vec![0u8; size_of::<f32>() * 8 * crate::rendering::pipeline_compute::WORKGROUP_SIZE]);
@@ -98,10 +134,11 @@ impl GraphicsEngine {
         self.update_settings(wgpu, model);
 
         // update palette
-        let color = Color([1.0, 1.0, 1.0, 1.0]);
+        let color = Color([0.0, 0.0, 1.0, 0.001]);
         let colors = vec![color; MAX_PALETTE_COLORS];
         wgpu.queue.write_buffer(&self.compute_pipeline.palette_buffer, 0 as BufferAddress, &bytemuck::cast_slice(&colors));
 
+        // update parameters
         wgpu.queue.write_buffer(&self.compute_pipeline.parameters_buffer, 0 as BufferAddress, bytemuck::cast_slice(&[ParametersStruct {
             seed: 699912576,
             width: model.width,
@@ -113,26 +150,27 @@ impl GraphicsEngine {
             padding_2: 0,
         }]));
 
+        // resize
         self.render_pipeline.resize(wgpu, (model.width, model.height));
-
         let tex_id = wgpu.renderer.write().register_native_texture(&*wgpu.device, &self.render_pipeline.texture_view, FilterMode::Nearest);
-        // self.output_texture = tex_id;
-
         let _ = self.app_tx.try_send(tex_id).unwrap();
     }
 
-    pub fn reset_histogram(&self, wgpu: &RenderState, model: &IFS) {
+    pub fn reset_histogram(&self, wgpu: &RenderState, model: &IFS) -> Option<Buffer>{
         // TODO: if has resize
         let hist_size = (model.width * model.height) as usize * size_of::<[f32;4]>();
         let newhist = vec![0; hist_size];
         if true {
-            wgpu.device.create_buffer_init(&BufferInitDescriptor {
+            let new_hist = wgpu.device.create_buffer_init(&BufferInitDescriptor {
                 label: Some("Histogram buffer"),
                 contents: &newhist, // assuming RGBA8?
                 usage: BufferUsages::STORAGE,
             });
+
+            return Some(new_hist);
         } else {
             wgpu.queue.write_buffer(&self.compute_pipeline.histogram_buffer, 0 as BufferAddress, &newhist);
+            return None;
         }
     }
 
@@ -196,7 +234,9 @@ impl GraphicsEngine {
 
         // TODO: DO NOT REBUILD THE SHADER THIS MUCH
         // EMBRACE NESTED RFLECTION GARBAGE
-        let src = include_str!("ifs_kernel.wgsl").to_owned();
+        let src = fs::read_to_string("src/rendering/ifs_kernel.wgsl").unwrap();
+
+        // let src = include_str!("ifs_kernel.wgsl").to_owned();
         let modified_src = src.replace("@transforms", &src_string);
 
         let shader_desc = ShaderModuleDescriptor {
@@ -210,12 +250,12 @@ impl GraphicsEngine {
         // write iterators buffer
         wgpu.queue.write_buffer(&self.compute_pipeline.iterators_buffer, 0 as BufferAddress, &bytemuck::cast_slice(&iterators));
     }
-    fn update_settings(&self, wgpu: &RenderState, model: &IFS) {
+    fn update_settings(&self, wgpu: &RenderState, model: &mut IFS) {
         let settings = SettingsStruct {
             camera_params: model.camera.create_camera_struct(),
             fog_effect: 0.0,
             itnum: model.iterators.len() as u32,
-            palettecnt: 256,
+            palettecnt: MAX_PALETTE_COLORS as i32,
             mark_area_in_focus: 1,
             warmup: model.fuse,
             entropy: model.entropy as f32,

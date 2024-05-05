@@ -1,8 +1,8 @@
 use std::hash::{Hash, Hasher};
 use crate::rendering::gpu_structs::CameraStruct;
-use nalgebra::{Matrix4, Vector3, Quaternion, Point3, Vector4, convert};
+use nalgebra::{Matrix4, Vector3, Quaternion, Point3, Vector4, convert, Rotation3};
 use serde::{Deserialize, Serialize};
-
+use crate::util::math_extensions::{transform_vector, to_radians};
 #[derive(Serialize, Deserialize)]
 pub enum ProjectionType {
     Perspective
@@ -41,12 +41,13 @@ impl Hash for Camera {
 impl Default for Camera {
     fn default() -> Self {
         Self {
-            position: Point3::new(0.0, 0.0, -10.0),
+            position: Point3::new(0.0, 0.0, 0.0),
             orientation: Quaternion::identity(),
 
             right_direction: Vector3::new(1.0, 0.0, 0.0),
             up_direction: Vector3::new(0.0, 1.0, 0.0),
             forward_direction: Vector3::new(0.0, 0.0, 1.0),
+
 
             fov: 60.0,
             aperture: 0.0,
@@ -59,12 +60,39 @@ impl Default for Camera {
 
 impl Camera {
     fn get_view_projection_matrix(&self, ) -> [[f32;4];4] {
-        let view = Matrix4::look_at_lh(&self.position, &(self.position - self.forward_direction), &self.up_direction);
-        let projection = Matrix4::new_perspective(1.0, self.fov, 0.001, f64::INFINITY);
+        let view = Matrix4::look_at_rh(&self.position, &(self.position - self.forward_direction), &(-self.up_direction));
+        let projection = Matrix4::new_perspective(1.0, to_radians(1.0+(self.fov % 179.0)), 0.001, f64::MAX);
+        println!("{:?}\n{:?}\n", view, projection);
         (view * projection).map(|e| e as f32).into()
     }
 
-    pub fn create_camera_struct(&self) -> CameraStruct {
+
+
+    fn update_direction_vectors(&mut self){
+        //     RightDirection = Vector3.Transform(new Vector3(1.0f, 0.0f, 0.0f), Orientation);
+        //     UpDirection = Vector3.Transform(new Vector3(0.0f, 1.0f, 0.0f), Orientation);
+        //     ForwardDirection = Vector3.Transform(new Vector3(0.0f, 0.0f, 1.0f), Orientation);
+        self.right_direction = transform_vector(&Vector3::new(1.0, 0.0, 0.0), &self.orientation);
+        self.up_direction = transform_vector(&Vector3::new(0.0, 1.0, 0.0), &self.orientation);
+        self.forward_direction = transform_vector(&Vector3::new(0.0, 0.0, 1.0), &self.orientation);
+
+        // self.up_direction = nalgebra::Transform3
+
+        // // self.orientation
+        // let rotation = Rotation3::from_(&self.orientation);
+        // let transformed = rotation.transform_vector(&nalgebra::Vector3::<f64>::new(1.0, 0.0, 0.0));
+        // // nalgebra::Vector3<f64>::new(1.0, 0.0, 0.0).transform_vector(self.orientation)
+    }
+
+    pub fn translate(&mut self, translate_vector: Vector3<f64>){
+        self.position += self.right_direction * translate_vector.x
+                      + self.up_direction * translate_vector.y
+                      + self.forward_direction * translate_vector.z;
+    }
+
+    pub fn create_camera_struct(&mut self) -> CameraStruct {
+        self.update_direction_vectors();
+
         let pos: Vector4<f32> = convert(self.position.coords.push(1.0));
         let forward: Vector4<f32> = convert(self.forward_direction.push(1.0));
         let focus: Vector4<f32> = convert((self.position + self.focus_distance * self.forward_direction).coords.push(0.0));
