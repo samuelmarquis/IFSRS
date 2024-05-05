@@ -101,7 +101,7 @@ struct RealParam {
 
 @group(0) @binding(9) var<storage, read_write> next_sample: u32;
 
-fn check_float_bits(f: f32) -> i32 { //dumb func to check inf/nan
+fn f32_inf_or_nan(f: f32) -> bool { //dumb func to check inf/nan
     let bits = bitcast<u32>(f);
     let exponent = (bits >> 23) & 0xFF;
     //let sign = (bits >> 31) & 0x1;
@@ -109,12 +109,20 @@ fn check_float_bits(f: f32) -> i32 { //dumb func to check inf/nan
 
     if (exponent == 0xFF) {
         if (mantissa != 0) {
-            return -1; // NaN
+            return true; // NaN
         } else {
-            return -1; // Inf
+            return true; // Inf
         }
     }
-    return 0; // Normal
+    return false; // Normal
+}
+
+fn vec4_inf_or_nan(v: vec4<f32>) -> bool {
+    let x = f32_inf_or_nan(v.x);
+    let y = f32_inf_or_nan(v.y);
+    let z = f32_inf_or_nan(v.z);
+    let w = f32_inf_or_nan(v.w);
+    return all(vec4(x,y,z,w));
 }
 
 fn rotmat(v: vec3<f32>, arad: f32) -> mat3x3<f32>{
@@ -281,8 +289,8 @@ fn getPaletteColor(pos: f32) -> vec3<f32> {
 	return mix(c1, c2, a);//lerp
 }
 
-fn project_perspective(c : camera_params, p : vec3<f32>) -> vec2<f32>{ //should update next
-    var p_norm = c.view_proj_mat * vec4(p, 1.0f);
+fn project_perspective(c : camera_params, pos : vec3<f32>) -> vec2<f32>{ //should update next
+    var p_norm = c.view_proj_mat * vec4(pos, 1.0f);
 
     //discard behind camera
     let dir = normalize(p_norm.xyz);
@@ -290,14 +298,18 @@ fn project_perspective(c : camera_params, p : vec3<f32>) -> vec2<f32>{ //should 
         return vec2(-2.0, -2.0);
     }
 
-    if (any(p_norm > vec4(3.40282347E+38)) || p_norm.w == 0.0){ //may be projected to infinity, or w is sometimes 0, not sure why
+    if (vec4_inf_or_nan(p_norm) /*|| p_norm.w == 0.0*/){ //may be projected to infinity, or w is sometimes 0, not sure why
+        return vec2(-2.0, -2.0);
+    }
+
+    if(p_norm.w == 0){
         return vec2(-2.0, -2.0);
     }
 
     p_norm /= p_norm.w;
 
     //dof
-    let blur : f32 = f32(c.aperture * max(0.0, abs(dot(p - c.focus_point.xyz, -c.forward.xyz)) - c.depth_of_field)); //use focalplane normal
+    let blur : f32 = f32(c.aperture * max(0.0, abs(dot(pos - c.focus_point.xyz, -c.forward.xyz)) - c.depth_of_field)); //use focalplane normal
     let ra   : f32 = random();
     let rl   : f32 = random();
     let swizzle = pow(rl, 0.5f) * blur * vec2(cos(ra * TAU), sin(ra * TAU));
@@ -313,6 +325,7 @@ fn project_perspective(c : camera_params, p : vec3<f32>) -> vec2<f32>{ //should 
     let ratio = f32(parameters.width) / f32(parameters.height);
     return vec2(
         (p_norm.x + 1) * 0.5 * f32(parameters.width) - 0.5,
+//        (p_norm.x + 1) * f32(parameters.width),
         (p_norm.y * ratio + 1) * 0.5 * f32(parameters.height) - 0.5);
 }
 
@@ -465,12 +478,6 @@ fn accumulate_hit(proj: vec2<i32>, color: vec4<f32>) {
 fn main(
     @builtin(global_invocation_id) id: vec3<u32>
 ) {
-//    let r = vec4(random(), random(), random(), random());
-//    let i = u32(random() % (1920 * 1080));
-//    let x = f32(id.x) / (64*256);
-//    histogram[id.x] = vec4(x, x, x, 1.0);
-
-
 	let gid = id.x;
 
 	var p : P_State;
@@ -479,10 +486,10 @@ fn main(
 
 	for (var i = 0; i < parameters.invocation_iters; i++)
 	{
+        // test if iteration is working (check)
 		//pick a random xaos weighted Transform index
-		var r_index: i32 = -1;
 		let r: f32 = random();
-		r_index = alias_sample_xaos(u32(p.iterator_index), r);
+		var r_index = alias_sample_xaos(u32(p.iterator_index), r);
 		if (       	  	  r_index == -1 || //no outgoing weight
                 p.iteration_depth == -1 || //invalid point position
 			random() < settings.entropy) //chance to reset by entropy
@@ -514,13 +521,18 @@ fn main(
 		p.iteration_depth++;
 
 		if (p.iteration_depth < i32(settings.warmup) || selected_iterator.opacity == 0.0) {
+
 			continue;//avoid useless projection and histogram writes
         }
 
+        // has made it past warmup
+
 		let projf : vec2<f32> = project(settings.camera, p.pos.xyz);
         if (projf.x == -2.0) {
-            continue;//out of frame
+            continue; //out of frame
         }
+
+
         let proj  = vec2<i32>(i32(round(projf.x)), i32(round(projf.y)));
 
 		var color = vec4(getPaletteColor(p.color_index), selected_iterator.opacity);
@@ -538,14 +550,14 @@ fn main(
 			continue;//avoid useless histogram writes
         }
 		//mark area in focus with red
-		if (settings.mark_area_in_focus != 0 && defocus < 0.01) {
+		if (/*settings.mark_area_in_focus != 0 && */defocus < 0.01) {
 			color = vec4(1.0, 0.0, 0.0, 2.0);
 		}
         color.x *= color.w;
         color.y *= color.w;
         color.z *= color.w;
 
-		if (settings.max_filter_radius > 0/* && proj.x>width/2*/) { //max filter radius <= aperture?
+		if (settings.max_filter_radius > 0 && proj.x > i32(parameters.width/2)) { //max filter radius <= aperture?
 			//TODO: determine filter_radius based on settings.filter_method
 			let filter_radius = i32(settings.max_filter_radius);
 
@@ -567,9 +579,11 @@ fn main(
             }
             if (nb.x >= 0 && nb.x < i32(parameters.width) && nb.y >= 0 && nb.y < i32(parameters.height)) {
                 accumulate_hit(nb, aw * color);
+                //accumulate_hit(nb, vec4(0.0, 1.0, 0.0, 1.0));
             }
 		} else {
 			accumulate_hit(proj, color);
+			//accumulate_hit(proj, vec4(1.0, 0.0, 0.0, 2.0));
 		}
 
 	}
@@ -583,8 +597,6 @@ const points: array<vec4<f32>, 3> = array<vec4<f32>, 3>( //do we need the generi
     vec4<f32>(3.0, 1.0, 0.0, 1.0), // Right corner
     vec4<f32>(-1.0, 1.0, 0.0, 1.0) // Top-left
 );
-
-
 
 @vertex
 fn vs_main(
@@ -610,5 +622,7 @@ fn fs_main(@builtin(position) coord_in: vec4<f32>) -> @location(0) vec4<f32> {
     var idx = coord_in.x;
     idx += coord_in.y * f32(parameters.width);
 
-    return histogram[u32(floor(idx))];
+//    let bg = vec4(0.0, 0.0, settings.camera.depth_of_field * 0.5, 0.0);
+
+    return histogram[parameters.width /2  + u32(floor(idx))];
 }

@@ -107,8 +107,8 @@ impl IFS{
             vibrancy: 1.0,
             background_color: [0.0, 0.0, 0.0],
             camera: Camera {
-                position: Point3::new(-3.7297344,  3.7017617, -6.790808),
-                orientation: Quaternion::new(0.21461225, 0.23977485, -0.060941823, 0.9448469),
+                position: Point3::new(-3.7297344,  2.7017617, -6.790808),
+                orientation: Quaternion::new(0.21461225, 0.23977485, -0.060941823, 0.0),
                 fov: 60.0,
                 aperture: 0.05413333333333333,
                 focus_distance: 8.306666666666665,

@@ -105,7 +105,7 @@ impl Display<'_> {
         let binding = &cc.wgpu_render_state;
         let wgpu = binding.as_ref().expect("wgpu??").clone();
 
-        work_status_tx.send(());
+        let _ = work_status_tx.send(());
 
         let mut engine = GraphicsEngine::new_engine(&wgpu, work_status_tx, ifs_rx, app_tx);
         thread::spawn(move || {
@@ -279,34 +279,34 @@ impl eframe::App for Display<'_> {
             ui.separator();
             ui.horizontal(|ui|{
                 ui.label("Field of View: ");
-                ui.add(egui::DragValue::new(&mut self.ifs.camera.fov).speed(0.5).clamp_range(1..=180));
+                ui.add(egui::DragValue::new(&mut self.ifs.camera.fov).speed(0.01).clamp_range(1..=180));
             });
             ui.horizontal(|ui|{
                 ui.label("Aperture: ");
-                ui.add(egui::DragValue::new(&mut self.ifs.camera.aperture).speed(0.5).clamp_range(0..=UPPER_BOUND));
+                ui.add(egui::DragValue::new(&mut self.ifs.camera.aperture).speed(0.01).clamp_range(0..=UPPER_BOUND));
             });
             ui.horizontal(|ui|{
                 ui.label("Focus Distance: ");
-                ui.add(egui::DragValue::new(&mut self.ifs.camera.focus_distance).speed(0.5));
+                ui.add(egui::DragValue::new(&mut self.ifs.camera.focus_distance).speed(0.01));
             });
             ui.horizontal(|ui|{
                 ui.label("Depth of Field: ");
-                ui.add(egui::DragValue::new(&mut self.ifs.camera.dof).speed(0.5).clamp_range(0..=UPPER_BOUND));
+                ui.add(egui::DragValue::new(&mut self.ifs.camera.dof).speed(0.005).clamp_range(0..=1));
             });
             ui.separator();
             ui.horizontal(|ui|{
                 ui.label("Entropy: ");
-                ui.add(egui::DragValue::new(&mut self.ifs.entropy).speed(0.5).clamp_range(1..=UPPER_BOUND));
+                ui.add(egui::DragValue::new(&mut self.ifs.entropy).speed(0.01).clamp_range(0..=UPPER_BOUND));
             });
             ui.horizontal(|ui|{
                 ui.label("Fuse timer: ");
-                ui.add(egui::DragValue::new(&mut self.ifs.fuse).speed(0.5).clamp_range(0..=UPPER_BOUND));
+                ui.add(egui::DragValue::new(&mut self.ifs.fuse).speed(0.01).clamp_range(0..=UPPER_BOUND));
             });
             ui.separator();
             ui.horizontal(|ui|{
                 ui.label("Stopping SL: ");
                 ui.checkbox(&mut self.use_stopping_sl, "");
-                ui.add(egui::DragValue::new(&mut self.ifs.stopping_sl).speed(0.5).clamp_range(0..=UPPER_BOUND));
+                ui.add(egui::DragValue::new(&mut self.ifs.stopping_sl).speed(0.01).clamp_range(0..=UPPER_BOUND));
             });
             ui.horizontal(|ui|{
                 ui.label("Batch mode: ");
@@ -322,6 +322,7 @@ impl eframe::App for Display<'_> {
 
         egui::CentralPanel::default().frame(Frame::none()).show(ctx, |ui| {
             self.viewport.ui_content(ui, self.viewport_texture);
+            self.ifs.camera.translate(self.viewport.pos_delta);
             // TODO: track resizes and send a size message
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
@@ -333,10 +334,11 @@ impl eframe::App for Display<'_> {
 
 //TODO--make something better than this and dragvalue
 fn integer_edit_field(ui: &mut egui::Ui, value: &mut u32) -> egui::Response {
-    let mut tmp_value = format!("{}", value);
+    let mut tmp_value : String = format!("{}", value);
     let res = ui.add(egui::TextEdit::singleline(&mut tmp_value).desired_width(40.0));
     if let Ok(result) = tmp_value.parse() {
-        *value = result;
+        let _: u32 = result;
+        *value = result.clamp(1,4096);
     }
     res
 }

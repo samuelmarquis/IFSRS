@@ -28,6 +28,7 @@ pub struct Compute {
     pub bind_group_layout: Arc<BindGroupLayout>,
     pub bind_group: Arc<BindGroup>,
 
+    pub pipeline_layout: PipelineLayout,
     pub compute_pipeline: ComputePipeline,
 }
 
@@ -263,12 +264,7 @@ impl Compute {
             ],
         });
 
-        let compute_pipeline = wgpu.device.create_compute_pipeline(&ComputePipelineDescriptor {
-            label: None,
-            layout: Some(&layout),
-            module: &shader,
-            entry_point: "main",
-        });
+        let compute_pipeline = Self::create_pipeline_with(wgpu, &layout, &shader);
 
         Self {
             histogram_buffer,
@@ -286,7 +282,72 @@ impl Compute {
             bind_group_layout: Arc::new(bind_group_layout),
 
             compute_pipeline,
+            pipeline_layout: layout,
         }
+    }
+
+    pub fn update_bind_group(&mut self, wgpu: &RenderState) {
+        let bind_group = wgpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: None,
+            layout: &self.bind_group_layout,
+            entries: &[
+                BindGroupEntry {
+                    binding: 0,
+                    resource: BindingResource::Buffer(self.histogram_buffer.as_entire_buffer_binding()),
+                },
+                BindGroupEntry {
+                    binding: 1,
+                    resource: BindingResource::Buffer(self.state_buffer.as_entire_buffer_binding())
+                },
+                BindGroupEntry {
+                    binding: 2,
+                    resource: BindingResource::Buffer(self.settings_buffer.as_entire_buffer_binding()),
+                },
+                BindGroupEntry {
+                    binding: 3,
+                    resource: BindingResource::Buffer(self.iterators_buffer.as_entire_buffer_binding())
+                },
+                BindGroupEntry {
+                    binding: 4,
+                    resource: BindingResource::Buffer(self.alias_tables_buffer.as_entire_buffer_binding()),
+                },
+                BindGroupEntry {
+                    binding: 5,
+                    resource: BindingResource::Buffer(self.palette_buffer.as_entire_buffer_binding())
+                },
+                BindGroupEntry {
+                    binding: 6,
+                    resource: BindingResource::Buffer(self.real_params_buffer.as_entire_buffer_binding()),
+                },
+                BindGroupEntry {
+                    binding: 7,
+                    resource: BindingResource::Buffer(self.vec3_params_buffer.as_entire_buffer_binding())
+                },
+                BindGroupEntry {
+                    binding: 8,
+                    resource: BindingResource::Buffer(self.parameters_buffer.as_entire_buffer_binding())
+                },
+                BindGroupEntry {
+                    binding: 9,
+                    resource: BindingResource::Buffer(self.next_sample_buffer.as_entire_buffer_binding())
+                }
+            ],
+        });
+
+        self.bind_group = Arc::new(bind_group);
+    }
+
+    pub fn create_pipeline_with(wgpu: &RenderState, layout: &PipelineLayout, shader: &ShaderModule) -> ComputePipeline {
+        wgpu.device.create_compute_pipeline(&ComputePipelineDescriptor {
+            label: None,
+            layout: Some(&layout),
+            module: &shader,
+            entry_point: "main",
+        })
+    }
+
+    pub fn recreate_pipeline_with_shader(&mut self, wgpu: &RenderState, shader: &ShaderModule) {
+        self.compute_pipeline = Self::create_pipeline_with(wgpu, &self.pipeline_layout, shader);
     }
 
     pub fn encode_commands(&self, wgpu: &RenderState) -> CommandBuffer {

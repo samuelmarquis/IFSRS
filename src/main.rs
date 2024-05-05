@@ -13,6 +13,7 @@ mod model;
 pub use app::Display;
 
 mod viewport;
+mod util;
 
 
 use eframe::Renderer::Wgpu;
