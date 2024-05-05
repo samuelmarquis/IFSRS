@@ -1,26 +1,26 @@
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
-use std::ops::{Index, IndexMut};
+use std::ops::{Deref, Index, IndexMut};
 use rand::random;
 use serde::{Deserialize, Serialize};
 use crate::model::transform::Transform;
+use crate::rendering::gpu_structs::IteratorStruct;
 
 
-#[derive(Clone)]
-#[derive(Serialize, Deserialize)]
-pub(crate) struct Iterator {
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct Iterator {
     pub id: i32,
     pub name: String,
     pub transform: Transform,
-    pub real_params: HashMap<String, f64>,
-    pub vec3_params: HashMap<String, [f64;3]>,
-    pub base_weight: f64,
-    pub color_speed: f64,
-    pub color_index: f64,
-    pub start_weight: f64,
-    pub opacity: f64,
-    pub mix: f64,
-    pub add: f64,
+    pub real_params: HashMap<String, f32>,
+    pub vec3_params: HashMap<String, [f32;3]>,
+    pub base_weight: f32,
+    pub color_speed: f32,
+    pub color_index: f32,
+    pub start_weight: f32,
+    pub opacity: f32,
+    pub mix: f32,
+    pub add: f32,
     //pub shading_mode: ShadingMode
     pub weight_to: HashMap<Iterator, f64>,
 }

@@ -1,0 +1,16 @@
+name = "Affine"
+version = 1.1
+
+[vec3_params]
+Translate = [0, 0, 0]
+Scale = [1, 1, 1]
+Rotate = [0, 0, 0]
+
+[wgsl]
+src = '''
+mat3x3 scale = mat3x3(1.0);
+scale[0][0] = Scale.x;
+scale[1][1] = Scale.y;
+scale[2][2] = Scale.z;
+return Translate + p * rotate_euler(Rotate * DEGTORAD) * scale;
+'''

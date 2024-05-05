@@ -1,3 +1,4 @@
+use std::hash::{Hash, Hasher};
 use crate::rendering::gpu_structs::CameraStruct;
 use nalgebra::{Matrix4, Vector3, Quaternion, Point3, Vector4, convert};
 use serde::{Deserialize, Serialize};
@@ -8,7 +9,7 @@ pub enum ProjectionType {
 }
 
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Camera {
     pub position: Point3<f64>,
     pub orientation: Quaternion<f64>,
@@ -21,7 +22,20 @@ pub struct Camera {
     pub focus_distance: f64,
     pub dof: f64,
 
-    pub projection_type: ProjectionType,
+    //pub projection_type: ProjectionType,
+}
+
+impl Hash for Camera {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        unsafe {
+            std::mem::transmute::<Point3<f64>, [u64; 3]>(self.position).hash(state);
+            std::mem::transmute::<Quaternion<f64>, [u64; 4]>(self.orientation).hash(state);
+            std::mem::transmute::<f64, u64>(self.fov).hash(state);
+            std::mem::transmute::<f64, u64>(self.aperture).hash(state);
+            std::mem::transmute::<f64, u64>(self.focus_distance).hash(state);
+            std::mem::transmute::<f64, u64>(self.dof).hash(state);
+        }
+    }
 }
 
 impl Default for Camera {
@@ -38,7 +52,7 @@ impl Default for Camera {
             aperture: 0.0,
             focus_distance: 10.0,
             dof: 0.25,
-            projection_type: ProjectionType::Perspective,
+            // projection_type: ProjectionType::Perspective,
         }
     }
 }

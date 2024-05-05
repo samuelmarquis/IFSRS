@@ -7,7 +7,7 @@ use wgpu::{BindGroupEntry, BindGroupLayoutDescriptor, BindGroupLayoutEntry, Bind
            PipelineLayoutDescriptor, ShaderStages};
 use wgpu::BufferBindingType::{Storage, Uniform};
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
-use crate::rendering::gpu_structs::{Settings, Iterator, Bufferable};
+use crate::rendering::gpu_structs::{IteratorStruct, Bufferable, SettingsStruct};
 use wgpu::*;
 use crate::rendering::graphics_engine::*;
 
@@ -36,52 +36,52 @@ impl Compute {
         let histogram_buffer = wgpu.device.create_buffer_init(&BufferInitDescriptor {
             label: Some("Histogram buffer"),
             contents: &vec![0u8; HISTOGRAM_WIDTH * HISTOGRAM_HEIGHT * size_of::<[f32;4]>()], // assuming RGBA8?
-            usage: BufferUsages::STORAGE,
+            usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
         });
 
         let state_buffer = wgpu.device.create_buffer_init(&BufferInitDescriptor {
             label: None,
             contents: &vec![0u8; size_of::<f32>() * 8 * WORKGROUP_SIZE],
-            usage: BufferUsages::STORAGE
+            usage: BufferUsages::STORAGE | BufferUsages::COPY_DST
         });
 
         let settings_buffer = wgpu.device.create_buffer_init(&BufferInitDescriptor {
             label: None,
-            contents: bytemuck::bytes_of(&Settings::new()),
-            usage: Settings::desc().usage
+            contents: bytemuck::bytes_of(&SettingsStruct::new()),
+            usage: SettingsStruct::desc().usage | BufferUsages::COPY_DST
         });
 
         let iterators_buffer = wgpu.device.create_buffer(&BufferDescriptor {
             label: None,
-            usage: wgpu::BufferUsages::UNIFORM,
-            size: MAX_ITERATORS as BufferAddress * crate::rendering::gpu_structs::Iterator::desc().size,
+            usage: wgpu::BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+            size: MAX_ITERATORS as BufferAddress * crate::rendering::gpu_structs::IteratorStruct::desc().size,
             mapped_at_creation: false,
         });
 
         let alias_tables_buffer = wgpu.device.create_buffer(&BufferDescriptor {
             label: None,
-            usage: BufferUsages::UNIFORM,
+            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
             size: (MAX_ITERATORS * size_of::<[f32; 4]>()) as BufferAddress,
             mapped_at_creation: false,
         });
 
         let palette_buffer = wgpu.device.create_buffer(&BufferDescriptor {
             label: None,
-            usage: BufferUsages::UNIFORM,
+            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
             size: (MAX_PALETTE_COLORS * size_of::<[f32; 4]>()) as BufferAddress,
             mapped_at_creation: false,
         });
 
         let real_params_buffer = wgpu.device.create_buffer(&BufferDescriptor {
             label: None,
-            usage: BufferUsages::UNIFORM,
+            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
             size: (16 * MAX_PARAMS) as BufferAddress,
             mapped_at_creation: false,
         });
 
         let vec3_params_buffer = wgpu.device.create_buffer(&BufferDescriptor {
             label: None,
-            usage: BufferUsages::UNIFORM,
+            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
             size: (16 * MAX_PARAMS) as BufferAddress,
             mapped_at_creation: false,
         });
@@ -95,7 +95,7 @@ impl Compute {
 
         let next_sample_buffer = wgpu.device.create_buffer(&BufferDescriptor {
             label: None,
-            usage: BufferUsages::STORAGE,
+            usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
             size: size_of::<u32>() as BufferAddress,
             mapped_at_creation: false,
         });

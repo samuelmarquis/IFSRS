@@ -8,7 +8,8 @@ pub trait Bufferable<'a> {
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Zeroable, bytemuck::Pod)]
-pub struct Parameters {
+pub struct ParametersStruct
+{
     pub seed: u32,
     pub width: u32,
     pub height: u32,
@@ -43,7 +44,7 @@ impl Default for CameraStruct {
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Zeroable, bytemuck::Pod)]
-pub struct Iterator {
+pub struct IteratorStruct {
     pub color_speed: f32,
     pub color_index: f32,
     pub opacity: f32,
@@ -60,7 +61,7 @@ pub struct Iterator {
     pub padding2: i32,
 }
 
-impl Iterator {
+impl IteratorStruct {
     pub fn new() -> Self {
         Self {
             color_speed: 1.0,
@@ -79,11 +80,11 @@ impl Iterator {
     }
 }
 
-impl <'a> Bufferable<'a> for Iterator {
+impl <'a> Bufferable<'a> for IteratorStruct {
     fn desc() -> BufferDescriptor<'a> {
         BufferDescriptor {
             label: None,
-            size: std::mem::size_of::<Iterator>() as wgpu::BufferAddress,
+            size: std::mem::size_of::<IteratorStruct>() as wgpu::BufferAddress,
             usage: wgpu::BufferUsages::UNIFORM,
             mapped_at_creation: false,
         }
@@ -92,7 +93,7 @@ impl <'a> Bufferable<'a> for Iterator {
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Zeroable, bytemuck::Pod)]
-pub struct Settings {
+pub struct SettingsStruct {
     pub camera_params: CameraStruct,
 
     pub fog_effect: f32,
@@ -111,7 +112,7 @@ pub struct Settings {
     pub filter_param2: f32,
 }
 
-impl Settings {
+impl SettingsStruct {
     pub fn new() -> Self {
         Self {
             camera_params: CameraStruct::default(),
@@ -131,11 +132,11 @@ impl Settings {
     }
 }
 
-impl <'a> Bufferable<'a> for Settings {
+impl <'a> Bufferable<'a> for SettingsStruct {
     fn desc() -> BufferDescriptor<'a> {
         BufferDescriptor {
             label: None,
-            size: std::mem::size_of::<Settings>() as wgpu::BufferAddress,
+            size: std::mem::size_of::<SettingsStruct>() as wgpu::BufferAddress,
             usage: wgpu::BufferUsages::UNIFORM,
             mapped_at_creation: false,
         }

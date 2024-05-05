@@ -1,0 +1,21 @@
+name = "Checks"
+version = 1.1
+
+[real_params]
+Size = 1
+
+[vec3_params]
+Offset = [1, 1, 1]
+
+[wgsl]
+# will autogenerate at the top of src:
+# let Size = 1.0 // f32
+# let Offset = vec3(1.0, 1.0, 1.0)
+src = '''
+vec3 checks = floor(p * size + vec3(0.5));
+float checked = checks.x + checks.y + checks.z;
+if(mod(checked, 2.0) != 0.0)
+	return p - Offset;
+else
+	return p + Offset;
+'''

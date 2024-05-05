@@ -244,11 +244,8 @@ fn apply_transform(iter : Iterator, _p_input : P_State) -> vec3<f32>{
 
     //transform snippets inserted on initialization
     //@transforms
-    return vec3<f32>(
-    	0.5 - random(),
-    	0.5 - random(),
-    	0.5 - random()
-    );
+
+    return p;
 }
 
 // returns color index

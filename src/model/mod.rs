@@ -1,4 +1,4 @@
 pub mod ifs;
-mod iterator;
-mod transform;
+pub mod iterator;
+pub mod transform;
 pub mod camera;

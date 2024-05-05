@@ -1,10 +1,12 @@
+use mpsc::sync_channel;
 use std::path::Path;
 use std::sync::{Arc, mpsc, Mutex};
-
+use std::sync::mpsc::{SyncSender, TryRecvError, TrySendError};
+use std::sync::mpsc::Receiver;
 use std::thread;
 use std::time::Duration;
 use bytemuck::cast_slice;
-use egui::{Frame, widgets, Window};
+use egui::{Frame, TextureId, widgets, Window};
 use wgpu::{BufferAddress, FilterMode};
 use crate::rendering::graphics_engine::GraphicsEngine;
 use crate::editors::response_curve_editor::ResponseCurveEditor;
@@ -13,9 +15,11 @@ use crate::editors::affine_editor::AffineEditor;
 use crate::editors::weight_graph_editor::WeightGraphEditor;
 use crate::editors::animation_editor::AnimationEditor;
 use crate::editors::automation_editor::AutomationEditor;
-use crate::rendering::gpu_structs::Parameters;
+use crate::rendering::gpu_structs::ParametersStruct;
 use crate::viewport::Viewport;
 use crate::model::ifs::IFS;
+use std::hash::Hash;
+use std::hash::Hasher;
 
 use crate::rendering::pipeline_render::Render;
 
@@ -24,7 +28,10 @@ const UPPER_BOUND: u16 = u16::MAX; //for when we need an inclusive range on some
 //#[derive(serde::Deserialize, serde::Serialize)]
 //#[serde(skip)] // if we add new fields, give them default values when deserializing old state
 pub struct Display<'a> {
+    engine_pipe: Option<SyncSender<IFS>>,
+    app_rx: Option<Receiver<TextureId>>,
     ifs: IFS,
+    ifs_hash: u64,
     // image settings
     lock_aspect_ratio: bool,
     batch_dir: &'a Path,
@@ -45,12 +52,18 @@ pub struct Display<'a> {
     animation_editor: AnimationEditor,
     automation_editor: AutomationEditor,
     viewport: Viewport,
+    viewport_texture: TextureId,
 }
 
 impl Default for Display<'_> {
     fn default() -> Self {
+        let ifs = IFS::cube_example();
+
         Self {
-            ifs: IFS::default(),
+            engine_pipe: None,
+            app_rx: None,
+            ifs: ifs,
+            ifs_hash: 0,
             lock_aspect_ratio: true,
             batch_dir: Path::new("."),
             use_batch_mode: false,
@@ -68,25 +81,36 @@ impl Default for Display<'_> {
             animation_editor: AnimationEditor::default(),
             automation_editor: AutomationEditor::default(),
             viewport: Viewport::default(),
+            viewport_texture: TextureId::default()
         }
     }
 }
 
 impl Display<'_> {
+
+    pub fn engine_pipe(&mut self) -> SyncSender<IFS> {
+        self.engine_pipe.as_ref().unwrap().clone()
+    }
+
+    pub fn try_get_texture(&mut self) -> Result<TextureId, TryRecvError> {
+        self.app_rx.as_ref().unwrap().try_recv()
+    }
+
     /// Called once before the first frame.
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        let (tx,rx) = mpsc::sync_channel(1);
-
+        let (work_status_tx, work_status_rx) = mpsc::sync_channel(1);
+        let (ifs_tx,ifs_rx) = mpsc::sync_channel(1);
+        let (app_tx,app_rx) = mpsc::sync_channel(60);
 
         let binding = &cc.wgpu_render_state;
         let wgpu = binding.as_ref().expect("wgpu??").clone();
-        tx.send(()).unwrap();
 
-        let mut engine = GraphicsEngine::new_engine(&wgpu, tx);
+        work_status_tx.send(());
 
+        let mut engine = GraphicsEngine::new_engine(&wgpu, work_status_tx, ifs_rx, app_tx);
         thread::spawn(move || {
             loop {
-                if rx.recv_timeout(Duration::from_millis(100)).is_ok() {
+                if work_status_rx.recv_timeout(Duration::from_millis(100)).is_ok() {
                     engine.render(&wgpu);
                 }
             }
@@ -100,6 +124,8 @@ impl Display<'_> {
         //}
 
         Self {
+            engine_pipe: Some(ifs_tx),
+            app_rx: Some(app_rx),
             ..Self::default()
         }
     }
@@ -115,6 +141,21 @@ impl eframe::App for Display<'_> {
 
     /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // TODO: if IFS has updated?
+        let new_hash = self.ifs.get_hash();
+        if new_hash != self.ifs_hash {
+            println!("hash changed from {} to {}", new_hash, self.ifs_hash);
+            match self.engine_pipe().try_send(self.ifs.clone()) {
+                Ok(_) => { self.ifs_hash = new_hash; }
+                Err(_) => {}
+            }
+        }
+
+        if let Ok(tex_id) = self.try_get_texture() {
+            self.viewport_texture = tex_id;
+            println!("updated viewport texture");
+        }
+
         //If sub-windows are open, draw them
         Window::new("Response Curve Editor")
             .open(&mut self.show_rcurves)
@@ -280,49 +321,8 @@ impl eframe::App for Display<'_> {
         });
 
         egui::CentralPanel::default().frame(Frame::none()).show(ctx, |ui| {
-            // let wgpu = _frame.wgpu_render_state().unwrap();
-            // println!("mutex 1 locked");
-            // let mut engine = self.graphics.as_mut().unwrap().lock().unwrap();
-            // engine.render(wgpu);
-            //
-            // self.viewport.ui_content(ui, engine.output_texture);
-            //
-            // let width = self.viewport.width.floor() as u32;
-            // let height = self.viewport.height.floor() as u32;
-            //
-            // let wgpu = _frame.wgpu_render_state().unwrap();
-            //
-            // wgpu.queue.write_buffer(&engine.compute_pipeline.parameters_buffer, 0 as BufferAddress, cast_slice(&[Parameters {
-            //     seed: 699912576,
-            //     width,
-            //     height,
-            //     dispatch_cnt: 0,
-            //     reset_points_state: 0,
-            //     invocation_iters: 0,
-            //     padding_1: 0,
-            //     padding_2: 0,
-            // }]));
-            //
-            // if engine.render_pipeline.texture.width() != width && width > 0
-            //     || engine.render_pipeline.texture.height() != height && height > 0
-            // {
-            //     let size = (width, height);
-            //     println!("resizing to: {:?}", size);
-            //
-            //     let wgpu = _frame.wgpu_render_state().unwrap();
-            //
-            //     let (render_state, shader, bg_layout, bg) = (
-            //         wgpu,
-            //         &engine.shader,
-            //         engine.compute_pipeline.bind_group_layout.clone(),
-            //         engine.compute_pipeline.bind_group.clone()
-            //     );
-            //
-            //     engine.render_pipeline.resize(wgpu, size);
-            //
-            //     let tex_id = wgpu.renderer.write().register_native_texture(&*wgpu.device, &engine.render_pipeline.texture_view, FilterMode::Nearest);
-            //     engine.output_texture = tex_id;
-            // }
+            self.viewport.ui_content(ui, self.viewport_texture);
+            // TODO: track resizes and send a size message
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
                 egui::warn_if_debug_build(ui);
@@ -332,7 +332,7 @@ impl eframe::App for Display<'_> {
 }
 
 //TODO--make something better than this and dragvalue
-fn integer_edit_field(ui: &mut egui::Ui, value: &mut u16) -> egui::Response { 
+fn integer_edit_field(ui: &mut egui::Ui, value: &mut u32) -> egui::Response {
     let mut tmp_value = format!("{}", value);
     let res = ui.add(egui::TextEdit::singleline(&mut tmp_value).desired_width(40.0));
     if let Ok(result) = tmp_value.parse() {

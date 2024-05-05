@@ -1,0 +1,92 @@
+﻿{
+  "Title": "cube",
+  "Authors": [
+    {
+      "Name": "Unknown Artist",
+      "Link": "-"
+    }
+  ],
+  "Iterators": [
+    {
+      "Id": 18209397,
+      "Name": null,
+      "Transform": {
+        "Item1": "Cube",
+        "Item2": "1.1"
+      },
+      "RealParams": {},
+      "Vec3Params": {},
+      "BaseWeight": 1.0,
+      "ColorSpeed": 0.5,
+      "ColorIndex": 0.0,
+      "StartWeight": 1.0,
+      "Opacity": 1.0,
+      "Mix": 1.0,
+      "Add": 0.0,
+      "ShadingMode": 0
+    }
+  ],
+  "Entropy": 0.01,
+  "Warmup": 0,
+  "Brightness": 1.0,
+  "Gamma": 1.0,
+  "GammaThreshold": 0.0,
+  "Vibrancy": 1.0,
+  "FogEffect": 0.0,
+  "Camera": {
+    "Orientation": {
+      "X": 0.21461225,
+      "Y": 0.23977485,
+      "Z": -0.060941823,
+      "W": 0.9448469,
+      "IsIdentity": false
+    },
+    "Position": {
+      "X": -3.7297344,
+      "Y": 3.7017617,
+      "Z": -6.790808
+    },
+    "FieldOfView": 60.0,
+    "Aperture": 0.05413333333333333,
+    "FocusDistance": 8.306666666666665,
+    "DepthOfField": 0.11666666666666672,
+    "Projection": 0
+  },
+  "BackgroundColor": "Black",
+  "ImageResolution": "1920, 1080",
+  "Palette": {
+    "Name": "Default Palette",
+    "Rotation": 0,
+    "Colors": [
+      {
+        "X": 1.0,
+        "Y": 1.0,
+        "Z": 1.0,
+        "W": 1.0
+      },
+      {
+        "X": 1.0,
+        "Y": 1.0,
+        "Z": 1.0,
+        "W": 1.0
+      }
+    ]
+  },
+  "Dopesheet": {
+    "Channels": {},
+    "Length": "00:00:10",
+    "Fps": 30
+  },
+  "TargetIterationLevel": 15.0,
+  "xaos": [
+    [
+      0.0
+    ]
+  ],
+  "Nodes": [
+    {
+      "X": 449.33333333333337,
+      "Y": 223.0
+    }
+  ]
+}

@@ -29,6 +29,8 @@ log = "0.4"
 
 futures = "0.3.30"
 
+anyhow = "1.0.82"
+
 # You only need serde if you want app persistence:
 serde = { version = "1", features = ["derive"] }
 toml = { version ="0.8.12" }
