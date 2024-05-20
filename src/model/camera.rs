@@ -63,7 +63,7 @@ impl Camera {
         let view = Matrix4::look_at_rh(&self.position, &(self.position - self.forward_direction), &(-self.up_direction));
         let projection = Matrix4::new_perspective(1.0, to_radians(1.0+(self.fov % 179.0)), 0.001, f64::MAX);
         println!("{:?}\n{:?}\n", view, projection);
-        (view * projection).map(|e| e as f32).into()
+        (projection * view).map(|e| e as f32).into()
     }
 
 
