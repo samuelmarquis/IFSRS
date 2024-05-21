@@ -1,7 +1,9 @@
 use std::hash::{Hash, Hasher};
 use std::ops::Index;
 use std::path::Iter;
+use egui::ahash::HashMap;
 use egui_winit::winit::dpi::Pixel;
+use futures::stream::iter;
 use nalgebra::{Point3, Quaternion};
 use serde::{Deserialize, Serialize};
 use crate::model::camera::Camera;
@@ -57,8 +59,8 @@ impl Default for IFS {
         Self {
             title: String::from("Untitled"),
             iterators: vec!(Iterator::default()),
-            width: 512,
-            height: 512,
+            width: 2048,
+            height: 2048,
             brightness: 1.0,
             gamma_inv: 1.0,
             gamma_thresh: 0.0,
@@ -96,9 +98,25 @@ impl IFS{
     }
     
     pub fn cube_example() -> Self {
+        let mut ah_tchip = vec![];
+
+        for i in 0..100 {
+            let mut it = Iterator::default();
+            it.color_index = (i as f32) / 100.0;
+            ah_tchip.push(it);
+        }
+
+        for i in 0..99 {
+            let i = 99 - i;
+            let next_in = ah_tchip[i].clone();
+            // shouldn't this really be an id or something??
+            let mut weight_to = &mut ah_tchip[i-1].weight_to;
+            weight_to.insert(next_in, 1.0);
+        }
+
         Self{
             title: String::from("CUBE"),
-            iterators: vec!(Iterator::default()),
+            iterators: ah_tchip,
             width: 512,
             height: 512,
             brightness: 1.0,
@@ -107,11 +125,11 @@ impl IFS{
             vibrancy: 1.0,
             background_color: [0.0, 0.0, 0.0],
             camera: Camera {
-                position: Point3::new(-3.7297344,  2.7017617, -6.790808),
-                orientation: Quaternion::new(0.21461225, 0.23977485, -0.060941823, 0.0),
+                position: Point3::new(1.5297344,  -2.8017617, -4.790808),
+                orientation: Quaternion::new(0.71461225, -0.33977485, -0.060941823, 0.0),
                 fov: 60.0,
                 aperture: 0.05413333333333333,
-                focus_distance: 8.306666666666665,
+                focus_distance: 6.15,
                 dof: 0.11666666666666672,
                 ..Camera::default()
             },

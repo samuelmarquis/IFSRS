@@ -134,8 +134,14 @@ impl GraphicsEngine {
         self.update_settings(wgpu, model);
 
         // update palette
-        let color = Color([0.0, 0.0, 1.0, 0.001]);
-        let colors = vec![color; MAX_PALETTE_COLORS];
+        // let color = Color([0.0, 0.0001, 0.4, 1.0]);
+        // let colors = vec![color; MAX_PALETTE_COLORS];
+        // let colors = vec![]
+        let mut colors = vec![];
+        for i in 0..MAX_PALETTE_COLORS {
+            let c = 1.0 - 1.0/MAX_PALETTE_COLORS as f32;
+            colors.push([c, c, c, 1.0]);
+        }
         wgpu.queue.write_buffer(&self.compute_pipeline.palette_buffer, 0 as BufferAddress, &bytemuck::cast_slice(&colors));
 
         // update parameters

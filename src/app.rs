@@ -303,7 +303,7 @@ impl eframe::App for Display<'_> {
                 ui.add(egui::DragValue::new(&mut self.ifs.fuse).speed(0.01).clamp_range(0..=UPPER_BOUND));
             });
             ui.separator();
-            ui.horizontal(|ui|{
+            ui.horizontal(|ui|{//
                 ui.label("Stopping SL: ");
                 ui.checkbox(&mut self.use_stopping_sl, "");
                 ui.add(egui::DragValue::new(&mut self.ifs.stopping_sl).speed(0.01).clamp_range(0..=UPPER_BOUND));
@@ -329,6 +329,8 @@ impl eframe::App for Display<'_> {
                 egui::warn_if_debug_build(ui);
             });
         });
+
+        ctx.request_repaint();
     }
 }
 
