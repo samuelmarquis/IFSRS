@@ -107,11 +107,11 @@ impl Display<'_> {
 
         let _ = work_status_tx.send(());
 
-        let mut engine = GraphicsEngine::new_engine(&wgpu, work_status_tx, ifs_rx, app_tx);
+        //let mut engine = GraphicsEngine::new_engine(&wgpu, work_status_tx, ifs_rx, app_tx);
         thread::spawn(move || {
             loop {
                 if work_status_rx.recv_timeout(Duration::from_millis(100)).is_ok() {
-                    engine.render(&wgpu);
+                    //engine.render(&wgpu);
                 }
             }
         });
@@ -144,7 +144,7 @@ impl eframe::App for Display<'_> {
         // TODO: if IFS has updated?
         let new_hash = self.ifs.get_hash();
         if new_hash != self.ifs_hash {
-            println!("hash changed from {} to {}", new_hash, self.ifs_hash);
+            //println!("hash changed from {} to {}", new_hash, self.ifs_hash);
             match self.engine_pipe().try_send(self.ifs.clone()) {
                 Ok(_) => { self.ifs_hash = new_hash; }
                 Err(_) => {}
@@ -174,7 +174,7 @@ impl eframe::App for Display<'_> {
             .show(ctx, |ui|self.animation_editor.ui_content(ui));
         Window::new("Automation")
             .open(&mut self.show_automator)
-            .show(ctx, |ui|self.automation_editor.ui_content(ui));
+            .show(ctx, |ui|self.automation_editor.ui_content(ctx, ui));
 
 
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
@@ -321,14 +321,17 @@ impl eframe::App for Display<'_> {
         });
 
         egui::CentralPanel::default().frame(Frame::none()).show(ctx, |ui| {
-            self.viewport.ui_content(ui, self.viewport_texture);
-            self.ifs.camera.translate(self.viewport.pos_delta);
+            //self.viewport.ui_content(ui, self.viewport_texture);
+            //self.ifs.camera.translate(self.viewport.pos_delta);
+
             // TODO: track resizes and send a size message
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
                 egui::warn_if_debug_build(ui);
             });
         });
+
+        ctx.request_repaint();
     }
 }
 

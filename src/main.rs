@@ -14,6 +14,7 @@ pub use app::Display;
 
 mod viewport;
 mod util;
+mod tests;
 
 
 use eframe::Renderer::Wgpu;

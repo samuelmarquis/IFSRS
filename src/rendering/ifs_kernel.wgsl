@@ -93,13 +93,15 @@ struct RealParam {
 
 @group(0) @binding(5) var<uniform> palette: array<vec4<f32>, MAX_PALETTE_COLORS>; // filled from cpu
 
-@group(0) @binding(6) var<uniform> real_params: array<RealParam, MAX_PARAMS>; // filled from cpu
+//@group(0) @binding(6) var<uniform> real_params: array<RealParam, MAX_PARAMS>; // filled from cpu
 
-@group(0) @binding(7) var<uniform> vec3_params: array<vec4<f32>, MAX_PARAMS>; // filled from cpu
+//@group(0) @binding(7) var<uniform> vec3_params: array<vec4<f32>, MAX_PARAMS>; // filled from cpu
 
 @group(0) @binding(8) var<uniform> parameters: Parameters; // filled from cpu
 
 @group(0) @binding(9) var<storage, read_write> next_sample: u32;
+
+@group(0) @binding(10) var<storage, write> done: u32;
 
 fn f32_inf_or_nan(f: f32) -> bool { //dumb func to check inf/nan
     let bits = bitcast<u32>(f);
@@ -585,7 +587,7 @@ fn main(
 			accumulate_hit(proj, color);
 			//accumulate_hit(proj, vec4(1.0, 0.0, 0.0, 2.0));
 		}
-
+        done = u32(1);
 	}
 	state[gid] = p;
 }

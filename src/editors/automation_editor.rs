@@ -1,49 +1,97 @@
+use std::collections::HashMap;
 use eframe::emath;
 use eframe::emath::{Pos2, Rect, Vec2, vec2};
-use egui::{Sense, Ui};
+use egui::{Sense, Ui, Context, Id};
+use crate::editors::concepts::node_graph_editor::*;
 
-pub struct AutomationEditor{
+fn get_node_types() -> Vec<Node> {
+    vec![
+        Node::new(None, "Audio", "Sources",
+                  vec![],
+                  vec!["RMS"]),
+        Node::new(None, "Constant", "Sources",
+                  vec![],
+                  vec![""]),
 
+        Node::new(None, "x+y", "Arithmetic",
+                  vec!["x", "y"],
+                  vec![""]),
+        Node::new(None, "x-y", "Arithmetic",
+                  vec!["x", "y"],
+                  vec![""]),
+        Node::new(None, "x*y", "Arithmetic",
+                  vec!["x", "y"],
+                  vec![""]),
+        Node::new(None, "x/y", "Arithmetic",
+                  vec!["x", "y"],
+                  vec![""]),
+        Node::new(None, "x%y", "Arithmetic",
+                  vec!["x", "y"],
+                  vec![""]),
+        Node::new(None, "-x", "Arithmetic",
+                  vec![""],
+                  vec![""]),
+        Node::new(None, "1/x", "Arithmetic",
+                  vec![""],
+                  vec![""]),
+
+        Node::new(None, "sin(x)", "Trig",
+                  vec![""],
+                  vec![""]),
+        Node::new(None, "cos(x)", "Trig",
+                  vec![""],
+                  vec![""]),
+        Node::new(None, "tan(x)", "Trig",
+                  vec![""],
+                  vec![""]),
+        Node::new(None, "cot(x)", "Trig",
+                  vec![""],
+                  vec![""]),
+        Node::new(None, "sec(x)", "Trig",
+                  vec![""],
+                  vec![""]),
+        Node::new(None, "csc(x)", "Trig",
+                  vec![""],
+                  vec![""]),
+
+        Node::new(None, "poltocar", "Coordinates",
+                  vec!["r","θ"],
+                  vec!["x","y"]),
+        Node::new(None, "cartopol", "Coordinates",
+                  vec!["x","y"],
+                  vec!["r","θ"]),
+        Node::new(None, "sphertocar", "Coordinates",
+                  vec!["ρ","θ","ϕ"],
+                  vec!["x","y","z"]),
+        Node::new(None, "cartospher", "Coordinates",
+                  vec!["x","y","z"],
+                  vec!["ρ","θ","ϕ"]),
+    ]
+}
+
+fn get_cat_map() -> HashMap<String, egui::Color32> {
+    HashMap::from([
+        ("Sources".to_string(), egui::Color32::from_rgb(200,190,215)),
+        ("Arithmetic".to_string(), egui::Color32::from_rgb(225,170,170)),
+        ("Trig".to_string(), egui::Color32::from_rgb(170,200,150)),
+        ("Coordinates".to_string(), egui::Color32::from_rgb(170,190,225)),
+    ])
+}
+
+pub struct AutomationEditor {
+    node_graph_editor: NodeGraphEditor
 }
 
 impl Default for AutomationEditor {
     fn default() -> Self {
         Self {
-
+            node_graph_editor: NodeGraphEditor::new(get_node_types(), get_cat_map()),
         }
     }
 }
 
-///TODO
-/// This is the window that allows the user to define automation curves.
-/// The real life of animation lives here.
-/// Automation curves should be simple to generate--ideally, the user can drop in some audio files,
-/// and we'll generate a bunch of features from them; RMS, loudest frequency, etc.
-/// Two ideas:
-/// Something node-based might be ideal here, where an automation source exposes a bunch of outputs,
-/// and we can create a graph of connections to parameters, modifying them with intermediate steps
-/// like slew and gating, or combining them with something like poltocar or simple math.
-/// Alternatively, on the rest of the interface, we can put "select automation source" dropdowns.
-/// If one is selected, and we then modify a parameter by some amount, that will create a mapping
-/// where the range of application this source has on that parameter is the amount by which we change it,
-/// and then this editor provides a more minimal view of creating the automation sources and
-/// a list/adjacency matrix of what maps where.
-/// Animationf editor will be a fallback for whatever doesn't belong here.
 impl AutomationEditor {
-    pub fn ui_content(&mut self, ui: &mut Ui) -> egui::Response {
-        let (response, painter) =
-            ui.allocate_painter(Vec2::new(ui.available_width(), 300.0), Sense::hover());
-
-        let to_screen = emath::RectTransform::from_to(
-            Rect::from_min_size(Pos2::ZERO, vec2(1.0,1.0)),
-            response.rect,
-        );
-        ui.label("One day, I'm going to be a real window!");
-
-        let xwidth = response.rect.max[0] - response.rect.min[0];
-        let ywidth = response.rect.max[1] - response.rect.min[1];
-        let scale : Vec2 = vec2(1.0/xwidth, 1.0/ywidth);
-
-        response
+    pub fn ui_content(&mut self, ctx: &Context, ui: &mut Ui) -> egui::Response {
+        self.node_graph_editor.ui_content(ctx,ui)
     }
 }

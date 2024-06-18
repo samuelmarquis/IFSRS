@@ -59,29 +59,31 @@ impl Default for Camera {
 }
 
 impl Camera {
-    fn get_view_projection_matrix(&self, ) -> [[f32;4];4] {
-        let view = Matrix4::look_at_rh(&self.position, &(self.position - self.forward_direction), &(-self.up_direction));
-        let projection = Matrix4::new_perspective(1.0, to_radians(1.0+(self.fov % 179.0)), 0.001, f64::MAX);
-        println!("{:?}\n{:?}\n", view, projection);
+    pub(crate) fn get_view_projection_matrix(&self, ) -> [[f32;4];4] {
+        let view = Matrix4::look_at_rh(
+            &self.position,
+            &(self.position - self.forward_direction),
+            &(-self.up_direction)
+        );
+        let projection = Matrix4::new_perspective(
+            1.0,
+            to_radians(1.0+(self.fov % 179.0)),
+            0.001,
+            f64::MAX
+        );
         (projection * view).map(|e| e as f32).into()
     }
 
-
-
-    fn update_direction_vectors(&mut self){
-        //     RightDirection = Vector3.Transform(new Vector3(1.0f, 0.0f, 0.0f), Orientation);
-        //     UpDirection = Vector3.Transform(new Vector3(0.0f, 1.0f, 0.0f), Orientation);
-        //     ForwardDirection = Vector3.Transform(new Vector3(0.0f, 0.0f, 1.0f), Orientation);
+    //POTENTIAL BUG LURKING HERE.
+    //When this gets called, we SET, not update.
+    //I.E., a 90 degree rotation about the X axis
+    //followed by a -90 degree rotation about the X axis
+    //results in the camera having a -90 degree rotation
+    //about the X axis. They do NOT cancel out.
+    pub(crate) fn update_direction_vectors(&mut self){
         self.right_direction = transform_vector(&Vector3::new(1.0, 0.0, 0.0), &self.orientation);
         self.up_direction = transform_vector(&Vector3::new(0.0, 1.0, 0.0), &self.orientation);
         self.forward_direction = transform_vector(&Vector3::new(0.0, 0.0, 1.0), &self.orientation);
-
-        // self.up_direction = nalgebra::Transform3
-
-        // // self.orientation
-        // let rotation = Rotation3::from_(&self.orientation);
-        // let transformed = rotation.transform_vector(&nalgebra::Vector3::<f64>::new(1.0, 0.0, 0.0));
-        // // nalgebra::Vector3<f64>::new(1.0, 0.0, 0.0).transform_vector(self.orientation)
     }
 
     pub fn translate(&mut self, translate_vector: Vector3<f64>){

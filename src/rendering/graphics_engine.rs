@@ -75,6 +75,8 @@ impl GraphicsEngine {
     }
 
     pub fn render(&mut self, wgpu: &RenderState) {
+        wgpu.queue.write_buffer(&self.compute_pipeline.done_buffer, 0 as BufferAddress, &vec![0u8; 4]);
+
         match self.ifs_rx.try_recv() {
             Ok(mut model) => {
                 println!("updating model");
@@ -107,9 +109,30 @@ impl GraphicsEngine {
         // moved_tx.send(()).unwrap();
         // wgpu.queue.on_submitted_work_done(move || moved_tx.send(()).unwrap());
         wgpu.queue.submit([compute_cmd, render_cmd]);
-        sleep(Duration::from_millis(8));
-        // TODO: determine sleep time
-        self.work_status_tx.send(()).unwrap();
+
+        // read one single bit
+        loop {
+            let buffer_slice = self.compute_pipeline.done_buffer.slice(..);
+            let (sender, receiver) = futures::channel::oneshot::channel();
+            buffer_slice.map_async(MapMode::Read, move |result| {
+                sender.send(()).unwrap();
+            });
+
+
+            wgpu.device.poll(wgpu::Maintain::Wait);
+            if let Ok(()) = futures::executor::block_on(receiver) {
+                let data_view = buffer_slice.get_mapped_range();
+
+                let x: &[u32] = bytemuck::cast_slice(&data_view);
+                if x[0] == 1 {
+                    break;
+                }
+
+                self.compute_pipeline.done_buffer.unmap();
+            }
+        }
+
+        // this write will be submitted at the start of the next render?
     }
 
     fn update_model(&mut self, wgpu: &RenderState, model: &mut IFS) {
@@ -233,7 +256,6 @@ impl GraphicsEngine {
         }
 
         // TODO: DO NOT REBUILD THE SHADER THIS MUCH
-        // EMBRACE NESTED RFLECTION GARBAGE
         let src = fs::read_to_string("src/rendering/ifs_kernel.wgsl").unwrap();
 
         // let src = include_str!("ifs_kernel.wgsl").to_owned();

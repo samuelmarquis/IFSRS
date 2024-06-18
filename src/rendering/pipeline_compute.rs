@@ -28,8 +28,9 @@ pub struct Compute {
     pub bind_group_layout: Arc<BindGroupLayout>,
     pub bind_group: Arc<BindGroup>,
 
-    pub pipeline_layout: PipelineLayout,
+    // pub pipeline_layout: PipelineLayout,
     pub compute_pipeline: ComputePipeline,
+    pub done_buffer: Buffer,
 }
 
 impl Compute {
@@ -101,111 +102,17 @@ impl Compute {
             mapped_at_creation: false,
         });
 
-        let bind_group_layout = wgpu.device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+        let done_buffer = wgpu.device.create_buffer(&BufferDescriptor {
             label: None,
-            entries: &[
-                BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: ShaderStages::COMPUTE | ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: Storage{ read_only: false, },
-                        has_dynamic_offset: false,
-                        min_binding_size: None, //todo -- replace none with actual size for speed
-                    },
-                    count: None,
-                },
-                BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: ShaderStages::COMPUTE | ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: Storage { read_only: false, },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                BindGroupLayoutEntry {
-                    binding: 2,
-                    visibility: wgpu::ShaderStages::all(),
-                    ty: wgpu::BindingType::Buffer {
-                        ty: Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                BindGroupLayoutEntry {
-                    binding: 3,
-                    visibility: wgpu::ShaderStages::all(),
-                    ty: wgpu::BindingType::Buffer {
-                        ty: Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                BindGroupLayoutEntry {
-                    binding: 4,
-                    visibility: wgpu::ShaderStages::all(),
-                    ty: wgpu::BindingType::Buffer {
-                        ty: Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                BindGroupLayoutEntry {
-                    binding: 5,
-                    visibility: wgpu::ShaderStages::all(),
-                    ty: wgpu::BindingType::Buffer {
-                        ty: Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                BindGroupLayoutEntry {
-                    binding: 6,
-                    visibility: wgpu::ShaderStages::all(),
-                    ty: wgpu::BindingType::Buffer {
-                        ty: Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                BindGroupLayoutEntry {
-                    binding: 7,
-                    visibility: wgpu::ShaderStages::all(),
-                    ty: wgpu::BindingType::Buffer {
-                        ty: Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                BindGroupLayoutEntry {
-                    binding: 8,
-                    visibility: wgpu::ShaderStages::all(),
-                    ty: wgpu::BindingType::Buffer {
-                        ty: Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                BindGroupLayoutEntry {
-                    binding: 9,
-                    visibility: ShaderStages::COMPUTE | ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: Storage { read_only: false, },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }
-            ],
+            usage: BufferUsages::COPY_DST | BufferUsages::MAP_READ,
+            size: size_of::<u32>() as BufferAddress,
+            mapped_at_creation: false,
         });
+
+        let compute_pipeline = Self::create_pipeline_with(wgpu, &shader);
+        let bind_group_layout = compute_pipeline.get_bind_group_layout(0);
+
+        println!("{:?}", bind_group_layout);
 
         let bind_group = wgpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: None,
@@ -235,14 +142,14 @@ impl Compute {
                     binding: 5,
                     resource: BindingResource::Buffer(palette_buffer.as_entire_buffer_binding())
                 },
-                BindGroupEntry {
-                    binding: 6,
-                    resource: BindingResource::Buffer(real_params_buffer.as_entire_buffer_binding()),
-                },
-                BindGroupEntry {
-                    binding: 7,
-                    resource: BindingResource::Buffer(vec3_params_buffer.as_entire_buffer_binding())
-                },
+                // BindGroupEntry {
+                //     binding: 6,
+                //     resource: BindingResource::Buffer(real_params_buffer.as_entire_buffer_binding()),
+                // },
+                // BindGroupEntry {
+                //     binding: 7,
+                //     resource: BindingResource::Buffer(vec3_params_buffer.as_entire_buffer_binding())
+                // },
                 BindGroupEntry {
                     binding: 8,
                     resource: BindingResource::Buffer(parameters_buffer.as_entire_buffer_binding())
@@ -250,21 +157,13 @@ impl Compute {
                 BindGroupEntry {
                     binding: 9,
                     resource: BindingResource::Buffer(next_sample_buffer.as_entire_buffer_binding())
+                },
+                BindGroupEntry {
+                    binding: 10,
+                    resource: BindingResource::Buffer(done_buffer.as_entire_buffer_binding())
                 }
             ],
         });
-
-        let layout = wgpu.device.create_pipeline_layout(&PipelineLayoutDescriptor {
-            label: None,
-            bind_group_layouts: &[
-                &bind_group_layout,
-            ],
-            push_constant_ranges: &[
-
-            ],
-        });
-
-        let compute_pipeline = Self::create_pipeline_with(wgpu, &layout, &shader);
 
         Self {
             histogram_buffer,
@@ -277,12 +176,13 @@ impl Compute {
             vec3_params_buffer,
             parameters_buffer,
             next_sample_buffer,
+            done_buffer,
 
             bind_group: Arc::new(bind_group),
             bind_group_layout: Arc::new(bind_group_layout),
 
             compute_pipeline,
-            pipeline_layout: layout,
+            // pipeline_layout: layout,
         }
     }
 
@@ -330,6 +230,10 @@ impl Compute {
                 BindGroupEntry {
                     binding: 9,
                     resource: BindingResource::Buffer(self.next_sample_buffer.as_entire_buffer_binding())
+                },
+                BindGroupEntry {
+                    binding: 10,
+                    resource: BindingResource::Buffer(self.done_buffer.as_entire_buffer_binding())
                 }
             ],
         });
@@ -337,17 +241,18 @@ impl Compute {
         self.bind_group = Arc::new(bind_group);
     }
 
-    pub fn create_pipeline_with(wgpu: &RenderState, layout: &PipelineLayout, shader: &ShaderModule) -> ComputePipeline {
+    pub fn create_pipeline_with(wgpu: &RenderState, shader: &ShaderModule) -> ComputePipeline {
         wgpu.device.create_compute_pipeline(&ComputePipelineDescriptor {
             label: None,
-            layout: Some(&layout),
+            layout: None,
             module: &shader,
             entry_point: "main",
         })
     }
 
     pub fn recreate_pipeline_with_shader(&mut self, wgpu: &RenderState, shader: &ShaderModule) {
-        self.compute_pipeline = Self::create_pipeline_with(wgpu, &self.pipeline_layout, shader);
+        self.compute_pipeline = Self::create_pipeline_with(wgpu, shader);
+        self.bind_group_layout = Arc::new(self.compute_pipeline.get_bind_group_layout(0));
     }
 
     pub fn encode_commands(&self, wgpu: &RenderState) -> CommandBuffer {
