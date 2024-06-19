@@ -20,6 +20,8 @@ use crate::viewport::Viewport;
 use crate::model::ifs::IFS;
 use std::hash::Hash;
 use std::hash::Hasher;
+use egui_winit::winit::dpi::Size;
+use crate::editors::editor_traits::EguiWindow;
 
 use crate::rendering::pipeline_render::Render;
 
@@ -45,7 +47,7 @@ pub struct Display<'a> {
     show_weights: bool,
     show_animator: bool,
     show_automator: bool,
-    response_curve_editor: ResponseCurveEditor,
+    //response_curve_editor: ResponseCurveEditor,
     palette_editor: PaletteEditor,
     affine_editor: AffineEditor,
     weight_graph_editor: WeightGraphEditor,
@@ -74,7 +76,7 @@ impl Default for Display<'_> {
             show_palette: false,
             show_animator: false,
             show_automator: false,
-            response_curve_editor: ResponseCurveEditor::default(),
+            //response_curve_editor: ResponseCurveEditor::default(),
             palette_editor: PaletteEditor::default(),
             affine_editor: AffineEditor::default(),
             weight_graph_editor: WeightGraphEditor::default(),
@@ -115,8 +117,6 @@ impl Display<'_> {
                 }
             }
         });
-
-
         // Load previous app state (if any).
         // Note that you must enable the `persistence` feature for this to work.
         //if let Some(storage) = cc.storage {
@@ -129,7 +129,6 @@ impl Display<'_> {
             ..Self::default()
         }
     }
-
     // pub fn new()
 }
 
@@ -139,27 +138,48 @@ impl eframe::App for Display<'_> {
     //    eframe::set_value(storage, eframe::APP_KEY, self);
     //}
 
+
     /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // TODO: if IFS has updated?
-        let new_hash = self.ifs.get_hash();
-        if new_hash != self.ifs_hash {
+        //let new_hash = self.ifs.get_hash();
+        //if new_hash != self.ifs_hash {
             //println!("hash changed from {} to {}", new_hash, self.ifs_hash);
-            match self.engine_pipe().try_send(self.ifs.clone()) {
-                Ok(_) => { self.ifs_hash = new_hash; }
-                Err(_) => {}
-            }
-        }
+        //    match self.engine_pipe().try_send(self.ifs.clone()) {
+        //        Ok(_) => { self.ifs_hash = new_hash; }
+        //        Err(_) => {}
+        //    }
+        //}
 
         if let Ok(tex_id) = self.try_get_texture() {
             self.viewport_texture = tex_id;
             println!("updated viewport texture");
         }
+/*
+        fn manage_editor<F>(ctx: &egui::Context, name: &'static str, size: [f32;2], mut editor: F, show: &mut bool)
+            where F: FnMut(),
+        {
+            ctx.show_viewport_immediate(
+                egui::ViewportId::from_hash_of(name),
+                egui::ViewportBuilder::default()
+                    .with_title(name)
+                    .with_inner_size(size),
+                |ctx, class| {
+                    editor();
 
+                    // self.response_curve_editor.ui_content(ctx);
+                    if ctx.input(|i| i.viewport().close_requested()) {
+                        // Tell parent viewport that we should not show next frame:
+                        *show = false;
+                    }
+                },
+            );
+        };
+*/
         //If sub-windows are open, draw them
-        Window::new("Response Curve Editor")
-            .open(&mut self.show_rcurves)
-            .show(ctx, |ui|self.response_curve_editor.ui_content(ui));
+        if self.show_rcurves {
+            // manage_editor(ctx, "Response Curve Editor", [300.0,300.0], || {&mut self.response_curve_editor.ui_content(ctx);}, &mut self.show_rcurves);
+        }
         Window::new("Palette Editor")
             .open(&mut self.show_palette)
             .show(ctx, |ui|self.palette_editor.ui_content(ui));
@@ -354,3 +374,4 @@ fn float_edit_field(ui: &mut egui::Ui, value: &mut f32) -> egui::Response {
     }
     res
 }
+

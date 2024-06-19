@@ -5,8 +5,19 @@ use std::vec;
 use eframe::emath;
 use eframe::emath::{Pos2, Rect, Vec2, vec2};
 use egui::{Context, Painter, Sense, Ui};
+use lazy_static::lazy_static;
 
-#[derive(Clone)]
+const BODY_COLOR: egui::Color32 = egui::Color32::from_rgb(128, 128, 128);
+const BODY_STROKE_COLOR: egui::Color32 = egui::Color32::from_rgb(160, 160, 160);
+const LABEL_STROKE_COLOR: egui::Color32 = egui::Color32::from_rgb(8, 8, 8);
+
+lazy_static! {
+    //WHY is this initializer not const??
+    static ref BODY_STROKE: egui::Stroke = egui::Stroke::new(1.0, BODY_STROKE_COLOR);
+    static ref LABEL_STROKE: egui::Stroke = egui::Stroke::new(1.0, LABEL_STROKE_COLOR);
+}
+
+#[derive(Clone, Debug)]
 pub struct Node {
     pub id: Option<usize>,
     pub name: String,
@@ -26,22 +37,24 @@ impl Node {
             name: name.to_string(),
             category: category.to_string(),
             inputs: inputs.iter().map(|s| s.to_string()).zip(repeat(None)).collect(),
-            outputs: inputs.iter().map(|s| s.to_string()).zip(repeat(None)).collect()
+            outputs: outputs.iter().map(|s| s.to_string()).zip(repeat(None)).collect()
         }
     }
+    //Labels get created on the bottom for nodes that have both inputs and outputs.
+    //For nodes with only inputs and no outputs, we put a vertical stripe on the right,
+    //and for nodes with no inputs, we put a vertical stripe on the left.
+    //TODO, add an icon to symbolize those (note for audio, whatever)
     fn draw(&self, painter: &Painter, pos: Pos2, cat_color: egui::Color32){
+
         let n_in = self.inputs.len();
         let n_out = self.outputs.len();
-        if(n_in > 0 && n_out > 0){
-            let body_rect = Rect::from_min_size(pos,
-                                                vec2(self.name.len()as f32 * 10.0,
-                                                     (max(self.inputs.len(),
-                                                          self.outputs.len()) as f32) *20.0));
 
-            painter.rect(body_rect, egui::Rounding::ZERO,
-                         egui::Color32::from_rgb(128, 128, 128),
-                         egui::Stroke::new(1.0,
-                                           egui::Color32::from_rgb(160, 160, 160)));
+        //Input & Output
+        if n_in > 0 && n_out > 0 {
+            let body_rect = Rect::from_min_size(pos,
+                                                vec2(self.name.len() as f32 * 10.0,
+                                                     (max(n_in, n_out) as f32) *20.0));
+            painter.rect(body_rect, egui::Rounding::ZERO, BODY_COLOR, *BODY_STROKE);
 
             let label_rect= Rect::from_two_pos(Pos2::from((body_rect.left_bottom().x,
                                                            body_rect.left_bottom().y+ 20.0)),
@@ -49,19 +62,41 @@ impl Node {
             painter.rect(label_rect,
                          egui::Rounding::ZERO,
                          cat_color,
-                         egui::Stroke::new(1.0,
-                                           egui::Color32::from_rgb(160, 160, 160)));
+                         *LABEL_STROKE);
             painter.text(label_rect.center(),
                          egui::Align2::CENTER_CENTER,
                          self.name.clone(),
                          egui::FontId::default(),
                          egui::Color32::WHITE);
+            return
+        }
+        //Body type for input only/output only
+        let body_rect = Rect::from_min_size(pos,vec2(60.0, max(n_in, n_out) as f32) *20.0);
+        painter.rect(body_rect, egui::Rounding::ZERO, BODY_COLOR, *BODY_STROKE);
+        let mut label_rect= Rect::NOTHING;
+
+        //Output only left-label
+        if n_in == 0 {
+            label_rect= Rect::from_two_pos(Pos2::from((body_rect.left_top().x-20.0,
+                                                           body_rect.left_top().y)),
+                                               body_rect.left_bottom());
+        }
+        //Input only right-label
+        if n_out == 0 {
+            label_rect= Rect::from_two_pos(Pos2::from((body_rect.right_top().x+20.0,
+                                                           body_rect.right_top().y)),
+                                               body_rect.right_bottom());
         }
 
+        painter.rect(label_rect, egui::Rounding::ZERO, cat_color, *LABEL_STROKE);
+        if(n_in == 0 && n_out == 0){
+            panic!("UN-CONNECTABLE NODE CREATED SOMEHOW?")
+        }
     }
 }
 
 pub struct NodeGraphEditor {
+    id_prefix: &'static str,
     nodes: Vec<(Node, Pos2)>,
     next_node_id: usize,
     popup_open: bool,
@@ -71,8 +106,9 @@ pub struct NodeGraphEditor {
 }
 
 impl NodeGraphEditor {
-    pub fn new(node_types: Vec<Node>, cat_map: HashMap<String, egui::Color32>) -> Self {
+    pub fn new(id_prefix: &'static str, node_types: Vec<Node>, cat_map: HashMap<String, egui::Color32>) -> Self {
         Self {
+            id_prefix: id_prefix,
             nodes: vec![],
             next_node_id: 0,
             popup_open: false,
@@ -83,6 +119,12 @@ impl NodeGraphEditor {
     }
 
     pub fn ui_content(&mut self, ctx: &Context, ui: &mut Ui) -> egui::Response {
+        egui::SidePanel::left("ng_left_panel").show(ctx, |ui| {
+            ui.label("Editors");
+            if ui.button("Response Curves").clicked() {
+
+            }
+        });
         let (response, painter) =
             ui.allocate_painter(Vec2::new(500.0, 300.0),
                                 Sense::drag().union(Sense::click()));

@@ -38,7 +38,7 @@ fn main() -> eframe::Result<()> {
     };
 
     eframe::run_native(
-        "IFSRS but it's totally not just a compute shader that outputs a gradient",
+        "IFSRS but it's totally not broken",
         native_options,
         Box::new(|cc| Box::new(Display::new(cc))),
     )

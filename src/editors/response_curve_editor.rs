@@ -65,128 +65,127 @@ impl Default for ResponseCurveEditor {
 
 //TODO--SHOULD NOT BE POSSIBLE TO MAKE A GRAPH THAT IS NOT A FUNCTION, SORT POINTS BY X VALUE?
 //TODO--CLICK ANYWHERE ON THE LINE TO ADD ANOTHER POINT
-impl ResponseCurveEditor {
-    pub fn ui_content(&mut self, ui: &mut Ui) -> egui::Response {
-        ui.horizontal(|ui|{
-            ui.selectable_value(&mut self.selected_curve, Curve::Overall, "Overall");
-            ui.selectable_value(&mut self.selected_curve, Curve::Red, "Red");
-            ui.selectable_value(&mut self.selected_curve, Curve::Green, "Green");
-            ui.selectable_value(&mut self.selected_curve, Curve::Blue, "Blue");
-            ui.selectable_value(&mut self.selected_curve, Curve::Alpha, "Alpha");
-        });
-        let (response, painter) =
-            ui.allocate_painter(Vec2::new(ui.available_width(), ui.available_height()),
-                                Sense::drag().union(Sense::click()));
+impl crate::editors::editor_traits::EguiWindow for ResponseCurveEditor {
+    fn ui_content(&mut self, ctx: &Context) {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                ui.selectable_value(&mut self.selected_curve, Curve::Overall, "Overall");
+                ui.selectable_value(&mut self.selected_curve, Curve::Red, "Red");
+                ui.selectable_value(&mut self.selected_curve, Curve::Green, "Green");
+                ui.selectable_value(&mut self.selected_curve, Curve::Blue, "Blue");
+                ui.selectable_value(&mut self.selected_curve, Curve::Alpha, "Alpha");
+            });
+            let (response, painter) =
+                ui.allocate_painter(Vec2::new(ui.available_width(), ui.available_height()),
+                                    Sense::drag().union(Sense::click()));
 
-        let to_screen = emath::RectTransform::from_to(
-            Rect::from_min_size(Pos2::ZERO, vec2(1.0,1.0)),
-            response.rect,
-        );
-        let xwidth = response.rect.max[0] - response.rect.min[0];
-        let ywidth = response.rect.max[1] - response.rect.min[1];
-        let scale : Vec2 = vec2(1.0/xwidth, 1.0/ywidth);
+            let to_screen = emath::RectTransform::from_to(
+                Rect::from_min_size(Pos2::ZERO, vec2(1.0, 1.0)),
+                response.rect,
+            );
+            let xwidth = response.rect.max[0] - response.rect.min[0];
+            let ywidth = response.rect.max[1] - response.rect.min[1];
+            let scale: Vec2 = vec2(1.0 / xwidth, 1.0 / ywidth);
 
-        let control_point_radius = 6.0;
-        let selected_points = match self.selected_curve {
-            Curve::Overall => &mut self.points_o,
-            Curve::Red => &mut self.points_r,
-            Curve::Green => &mut self.points_g,
-            Curve::Blue => &mut self.points_b,
-            Curve::Alpha => &mut self.points_a,
-        };
-        let control_point_shapes: Vec<Shape> = selected_points
-            .iter_mut()
-            .enumerate()
-            .map(|(i, point)| {
-                let size = Vec2::splat(2.0 * control_point_radius);
+            let control_point_radius = 6.0;
+            let selected_points = match self.selected_curve {
+                Curve::Overall => &mut self.points_o,
+                Curve::Red => &mut self.points_r,
+                Curve::Green => &mut self.points_g,
+                Curve::Blue => &mut self.points_b,
+                Curve::Alpha => &mut self.points_a,
+            };
+            let control_point_shapes: Vec<Shape> = selected_points
+                .iter_mut()
+                .enumerate()
+                .map(|(i, point)| {
+                    let size = Vec2::splat(2.0 * control_point_radius);
 
-                let point_in_screen = to_screen.transform_pos(*point);
-                let point_rect = Rect::from_center_size(point_in_screen, size);
-                let point_id = response.id.with(i);
-                let point_response = ui.interact(point_rect, point_id, Sense::drag());
+                    let point_in_screen = to_screen.transform_pos(*point);
+                    let point_rect = Rect::from_center_size(point_in_screen, size);
+                    let point_id = response.id.with(i);
+                    let point_response = ui.interact(point_rect, point_id, Sense::drag());
 
-                let mut new_point = *point + point_response.drag_delta() * scale;
-                new_point = to_screen.from().clamp(new_point);
+                    let mut new_point = *point + point_response.drag_delta() * scale;
+                    new_point = to_screen.from().clamp(new_point);
 
-                if i == 0 {
-                    new_point.x = 0.0; // Keep the first point on the left edge
-                } else if i == self.n_points - 1 {
-                    new_point.x = 1.0; // Keep the last point on the right edge
-                }
-
-                *point = new_point;
-
-                let point_in_screen = to_screen.transform_pos(*point);
-                let stroke = ui.style().interact(&point_response).fg_stroke;
-
-                Shape::circle_stroke(point_in_screen, control_point_radius, stroke)
-            })
-            .collect();
-
-        let line_click_radius = 8.0;
-        let mut new_point = None;
-
-        if response.secondary_clicked() {
-            let click_pos = response.interact_pointer_pos().unwrap();
-            let click_pos_transformed = to_screen.inverse().transform_pos(click_pos);
-
-            println!("Right-click detected at position: {:?}", click_pos_transformed);
-
-            for (i, point) in selected_points.iter().enumerate() {
-                println!("Checking point {}: {:?}", i, point);
-
-                if point.distance(click_pos_transformed) < control_point_radius*scale.x {
-                    println!("Point {} is within click radius", i);
-
-                    if i > 0 && i < selected_points.len() - 1 {
-                        println!("Removing point {}", i);
-                        selected_points.remove(i);
-                    } else {
-                        println!("Cannot remove point {}: it's an endpoint", i);
+                    if i == 0 {
+                        new_point.x = 0.0; // Keep the first point on the left edge
+                    } else if i == self.n_points - 1 {
+                        new_point.x = 1.0; // Keep the last point on the right edge
                     }
-                    break;
-                }
-            }
-        }
 
-        let points_in_screen: Vec<Pos2> = selected_points.iter()
-            .sorted_by(|a, b| a.x.partial_cmp(&b.x).unwrap())
-            .map(|p| to_screen * *p)
-            .collect();
+                    *point = new_point;
 
+                    let point_in_screen = to_screen.transform_pos(*point);
+                    let stroke = ui.style().interact(&point_response).fg_stroke;
 
+                    Shape::circle_stroke(point_in_screen, control_point_radius, stroke)
+                })
+                .collect();
 
-        if response.clicked() {
-            let click_pos = response.interact_pointer_pos().unwrap();
-            let click_pos_transformed = to_screen.inverse().transform_pos(click_pos);
+            let line_click_radius = 8.0;
+            let mut new_point = None;
 
-            for i in 0..points_in_screen.len() - 1 {
-                let p1 = points_in_screen[i];
-                let p2 = points_in_screen[i + 1];
+            if response.secondary_clicked() {
+                let click_pos = response.interact_pointer_pos().unwrap();
+                let click_pos_transformed = to_screen.inverse().transform_pos(click_pos);
 
-                if let Some(closest_point) = closest_point_on_line_segment(click_pos, p1, p2) {
-                    if closest_point.distance(click_pos) < line_click_radius {
-                        new_point = Some(closest_point);
+                println!("Right-click detected at position: {:?}", click_pos_transformed);
+
+                for (i, point) in selected_points.iter().enumerate() {
+                    println!("Checking point {}: {:?}", i, point);
+
+                    if point.distance(click_pos_transformed) < control_point_radius * scale.x {
+                        println!("Point {} is within click radius", i);
+
+                        if i > 0 && i < selected_points.len() - 1 {
+                            println!("Removing point {}", i);
+                            selected_points.remove(i);
+                        } else {
+                            println!("Cannot remove point {}: it's an endpoint", i);
+                        }
                         break;
                     }
                 }
             }
 
-            if let Some(new_point) = new_point {
-                selected_points.push(click_pos_transformed);
+            let points_in_screen: Vec<Pos2> = selected_points.iter()
+                .sorted_by(|a, b| a.x.partial_cmp(&b.x).unwrap())
+                .map(|p| to_screen * *p)
+                .collect();
+
+
+            if response.clicked() {
+                let click_pos = response.interact_pointer_pos().unwrap();
+                let click_pos_transformed = to_screen.inverse().transform_pos(click_pos);
+
+                for i in 0..points_in_screen.len() - 1 {
+                    let p1 = points_in_screen[i];
+                    let p2 = points_in_screen[i + 1];
+
+                    if let Some(closest_point) = closest_point_on_line_segment(click_pos, p1, p2) {
+                        if closest_point.distance(click_pos) < line_click_radius {
+                            new_point = Some(closest_point);
+                            break;
+                        }
+                    }
+                }
+
+                if let Some(new_point) = new_point {
+                    selected_points.push(click_pos_transformed);
+                }
             }
-        }
 
-        painter.add(PathShape::line(points_in_screen, *match self.selected_curve {
-            Curve::Overall => &self.stroke_o,
-            Curve::Red => &self.stroke_r,
-            Curve::Green => &self.stroke_g,
-            Curve::Blue => &self.stroke_b,
-            Curve::Alpha => &self.stroke_a,
-        }));
-        painter.extend(control_point_shapes);
-
-        response
+            painter.add(PathShape::line(points_in_screen, *match self.selected_curve {
+                Curve::Overall => &self.stroke_o,
+                Curve::Red => &self.stroke_r,
+                Curve::Green => &self.stroke_g,
+                Curve::Blue => &self.stroke_b,
+                Curve::Alpha => &self.stroke_a,
+            }));
+            painter.extend(control_point_shapes);
+        });
     }
 }
 

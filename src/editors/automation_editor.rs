@@ -8,10 +8,10 @@ fn get_node_types() -> Vec<Node> {
     vec![
         Node::new(None, "Audio", "Sources",
                   vec![],
-                  vec!["RMS"]),
+                  vec!["RMS", "Pitch"]),
         Node::new(None, "Constant", "Sources",
                   vec![],
-                  vec![""]),
+                  vec!["0"]),
 
         Node::new(None, "x+y", "Arithmetic",
                   vec!["x", "y"],
@@ -85,7 +85,7 @@ pub struct AutomationEditor {
 impl Default for AutomationEditor {
     fn default() -> Self {
         Self {
-            node_graph_editor: NodeGraphEditor::new(get_node_types(), get_cat_map()),
+            node_graph_editor: NodeGraphEditor::new("ae", get_node_types(), get_cat_map()),
         }
     }
 }
