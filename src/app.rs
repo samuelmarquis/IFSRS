@@ -173,7 +173,7 @@ impl eframe::App for Display<'_> {
                     }
                 },
             );
-        };
+        }
 
         //If sub-windows are open, draw them
         if self.show_rcurves {
