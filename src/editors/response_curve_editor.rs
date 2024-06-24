@@ -65,8 +65,8 @@ impl Default for ResponseCurveEditor {
 
 //TODO--SHOULD NOT BE POSSIBLE TO MAKE A GRAPH THAT IS NOT A FUNCTION, SORT POINTS BY X VALUE?
 //TODO--CLICK ANYWHERE ON THE LINE TO ADD ANOTHER POINT
-impl crate::editors::editor_traits::EguiWindow for ResponseCurveEditor {
-    fn ui_content(&mut self, ctx: &Context) {
+impl ResponseCurveEditor {
+    pub fn ui_content(&mut self, ctx: &Context) {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.selectable_value(&mut self.selected_curve, Curve::Overall, "Overall");

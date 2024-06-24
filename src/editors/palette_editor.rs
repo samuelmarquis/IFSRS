@@ -1,7 +1,7 @@
 use eframe::emath;
 use eframe::emath::{Pos2, pos2, Rect, Vec2, vec2};
 use eframe::epaint::{Color32, Stroke};
-use egui::{Sense, Ui};
+use egui::{Context, Sense, Ui};
 
 pub struct PaletteEditor{
     palette: [u8; 256*3],
@@ -41,20 +41,22 @@ impl Default for PaletteEditor {
 /// and scroll up/down to change opacity. (If we imagine a triangle pointing at a position on the palette,
 /// the triangle would become wider as we increase color speed, and hollower (to a wireframe outline) as we adjust opacity.
 impl PaletteEditor {
-    pub fn ui_content(&mut self, ui: &mut Ui) -> egui::Response {
-        let (response, _painter) =
-            ui.allocate_painter(Vec2::new(ui.available_width(), 300.0), Sense::hover());
+    pub fn ui_content(&mut self, ctx: &Context) {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            let (response, _painter) =
+                ui.allocate_painter(Vec2::new(ui.available_width(), 300.0), Sense::hover());
 
-        let _to_screen = emath::RectTransform::from_to(
-            Rect::from_min_size(Pos2::ZERO, vec2(1.0,1.0)),
-            response.rect,
-        );
-        ui.label("One day, I'm going to be a real window!");
+            let _to_screen = emath::RectTransform::from_to(
+                Rect::from_min_size(Pos2::ZERO, vec2(1.0, 1.0)),
+                response.rect,
+            );
+            ui.label("One day, I'm going to be a real window!");
 
-        let xwidth = response.rect.max[0] - response.rect.min[0];
-        let ywidth = response.rect.max[1] - response.rect.min[1];
-        let _scale : Vec2 = vec2(1.0/xwidth, 1.0/ywidth);
+            let xwidth = response.rect.max[0] - response.rect.min[0];
+            let ywidth = response.rect.max[1] - response.rect.min[1];
+            let _scale: Vec2 = vec2(1.0 / xwidth, 1.0 / ywidth);
 
-        response
+            response
+        });
     }
 }

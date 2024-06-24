@@ -21,8 +21,7 @@ use crate::model::ifs::IFS;
 use std::hash::Hash;
 use std::hash::Hasher;
 use egui_winit::winit::dpi::Size;
-use crate::editors::editor_traits::EguiWindow;
-
+use re_memory::{accounting_allocator, AccountingAllocator};
 use crate::rendering::pipeline_render::Render;
 
 const UPPER_BOUND: u16 = u16::MAX; //for when we need an inclusive range on something that should have no upper bound
@@ -47,7 +46,7 @@ pub struct Display<'a> {
     show_weights: bool,
     show_animator: bool,
     show_automator: bool,
-    //response_curve_editor: ResponseCurveEditor,
+    response_curve_editor: ResponseCurveEditor,
     palette_editor: PaletteEditor,
     affine_editor: AffineEditor,
     weight_graph_editor: WeightGraphEditor,
@@ -76,7 +75,7 @@ impl Default for Display<'_> {
             show_palette: false,
             show_animator: false,
             show_automator: false,
-            //response_curve_editor: ResponseCurveEditor::default(),
+            response_curve_editor: ResponseCurveEditor::default(),
             palette_editor: PaletteEditor::default(),
             affine_editor: AffineEditor::default(),
             weight_graph_editor: WeightGraphEditor::default(),
@@ -151,11 +150,11 @@ impl eframe::App for Display<'_> {
         //    }
         //}
 
-        if let Ok(tex_id) = self.try_get_texture() {
-            self.viewport_texture = tex_id;
-            println!("updated viewport texture");
-        }
-/*
+        //if let Ok(tex_id) = self.try_get_texture() {
+        //    self.viewport_texture = tex_id;
+        //    println!("updated viewport texture");
+        //}
+
         fn manage_editor<F>(ctx: &egui::Context, name: &'static str, size: [f32;2], mut editor: F, show: &mut bool)
             where F: FnMut(),
         {
@@ -175,26 +174,33 @@ impl eframe::App for Display<'_> {
                 },
             );
         };
-*/
+
         //If sub-windows are open, draw them
         if self.show_rcurves {
-            // manage_editor(ctx, "Response Curve Editor", [300.0,300.0], || {&mut self.response_curve_editor.ui_content(ctx);}, &mut self.show_rcurves);
+           manage_editor(ctx, "Response Curve Editor", [300.0,300.0],
+                         || {&mut self.response_curve_editor.ui_content(ctx);},
+                         &mut self.show_rcurves);
         }
-        Window::new("Palette Editor")
-            .open(&mut self.show_palette)
-            .show(ctx, |ui|self.palette_editor.ui_content(ui));
-        Window::new("Affine Editor")
-            .open(&mut self.show_affines)
-            .show(ctx, |ui|self.affine_editor.ui_content(ui));
-        Window::new("Weight Graph Editor")
-            .open(&mut self.show_weights)
-            .show(ctx, |ui|self.weight_graph_editor.ui_content(ui));
-        Window::new("Animation")
-            .open(&mut self.show_animator)
-            .show(ctx, |ui|self.animation_editor.ui_content(ui));
-        Window::new("Automation")
-            .open(&mut self.show_automator)
-            .show(ctx, |ui|self.automation_editor.ui_content(ctx, ui));
+        if self.show_palette {
+            manage_editor(ctx, "Palette Editor", [500.0,300.0],
+                          || {&mut self.palette_editor.ui_content(ctx);},
+                          &mut self.show_palette);
+        }
+        if self.show_affines {
+            manage_editor(ctx, "Affine Editor", [500.0,500.0],
+                          || {&mut self.affine_editor.ui_content(ctx);},
+                          &mut self.show_affines);
+        }
+        if self.show_weights {
+            manage_editor(ctx, "Weights Editor", [500.0,500.0],
+                          || {&mut self.weight_graph_editor.ui_content(ctx);},
+                          &mut self.show_weights);
+        }
+        if self.show_automator {
+            manage_editor(ctx, "Automation Editor", [800.0,500.0],
+                          || {&mut self.automation_editor.ui_content(ctx);},
+                          &mut self.show_automator);
+        }
 
 
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
@@ -242,102 +248,102 @@ impl eframe::App for Display<'_> {
         });
 
 
-        egui::SidePanel::left("left_panel").show(ctx, |ui| {
-            ui.label("Editors");
-            if ui.button("Response Curves").clicked() {
-                self.show_rcurves = !self.show_rcurves;
-            }
-            if ui.button("Palette").clicked() {
-                self.show_palette = !self.show_palette;
-            }
-            if ui.button("Affine editor").clicked() {
-                self.show_affines = !self.show_affines;
-            }
-            if ui.button("Weight graph").clicked() {
-                self.show_weights = !self.show_weights;
-            }
-            if ui.button("Animation").clicked() {
-                self.show_animator = !self.show_animator;
-            }
-            if ui.button("Automation").clicked() {
-                self.show_automator = !self.show_automator;
-            }
+        egui::SidePanel::left("left_panel").resizable(false).show(ctx, |ui| {
+           ui.label("Editors");
+           if ui.button("Response Curves").clicked() {
+               self.show_rcurves = !self.show_rcurves;
+           }
+           if ui.button("Palette").clicked() {
+               self.show_palette = !self.show_palette;
+           }
+           if ui.button("Affine editor").clicked() {
+               self.show_affines = !self.show_affines;
+           }
+           if ui.button("Weight graph").clicked() {
+               self.show_weights = !self.show_weights;
+           }
+           if ui.button("Animation").clicked() {
+               self.show_animator = !self.show_animator;
+           }
+           if ui.button("Automation").clicked() {
+               self.show_automator = !self.show_automator;
+           }
         });
 
 
-        egui::SidePanel::right("right_panel").show(ctx, |ui| {
-            ui.horizontal(|ui|{
-                ui.label("Image dimensions: ");
-                integer_edit_field(ui, &mut self.ifs.width);
-                integer_edit_field(ui, &mut self.ifs.height); //TODO--IMPLEMENT ASPECT RATIO LOCKING
-            });
-            ui.horizontal(|ui| {
-                ui.label("Lock aspect ratio? ");
-                ui.checkbox(&mut self.lock_aspect_ratio, "");
-            });
-            ui.separator();
-            ui.horizontal(|ui|{
-                ui.label("Brightness: ");
-                ui.add(egui::DragValue::new(&mut self.ifs.brightness).speed(0.1).clamp_range(0..=UPPER_BOUND));
-            });
-            ui.horizontal(|ui|{
-                ui.label("1/Gamma: ");
-                ui.add(egui::DragValue::new(&mut self.ifs.gamma_inv).speed(0.1).clamp_range(0..=UPPER_BOUND));
-            });
-            ui.horizontal(|ui|{
-                ui.label("Gamma Threshold: ");
-                ui.add(egui::DragValue::new(&mut self.ifs.gamma_thresh).speed(0.1).clamp_range(0..=UPPER_BOUND));
-            });
-            ui.horizontal(|ui|{
-                ui.label("Vibrancy: ");
-                ui.add(egui::DragValue::new(&mut self.ifs.vibrancy).speed(0.1));
-            });
-            ui.horizontal(|ui|{
-                ui.label("Background color: ");
-                egui::widgets::color_picker::color_edit_button_rgb(ui, &mut self.ifs.background_color);
-            });
-            ui.separator();
-            ui.horizontal(|ui|{
-                ui.label("Field of View: ");
-                ui.add(egui::DragValue::new(&mut self.ifs.camera.fov).speed(0.01).clamp_range(1..=180));
-            });
-            ui.horizontal(|ui|{
-                ui.label("Aperture: ");
-                ui.add(egui::DragValue::new(&mut self.ifs.camera.aperture).speed(0.01).clamp_range(0..=UPPER_BOUND));
-            });
-            ui.horizontal(|ui|{
-                ui.label("Focus Distance: ");
-                ui.add(egui::DragValue::new(&mut self.ifs.camera.focus_distance).speed(0.01));
-            });
-            ui.horizontal(|ui|{
-                ui.label("Depth of Field: ");
-                ui.add(egui::DragValue::new(&mut self.ifs.camera.dof).speed(0.005).clamp_range(0..=1));
-            });
-            ui.separator();
-            ui.horizontal(|ui|{
-                ui.label("Entropy: ");
-                ui.add(egui::DragValue::new(&mut self.ifs.entropy).speed(0.01).clamp_range(0..=UPPER_BOUND));
-            });
-            ui.horizontal(|ui|{
-                ui.label("Fuse timer: ");
-                ui.add(egui::DragValue::new(&mut self.ifs.fuse).speed(0.01).clamp_range(0..=UPPER_BOUND));
-            });
-            ui.separator();
-            ui.horizontal(|ui|{
-                ui.label("Stopping SL: ");
-                ui.checkbox(&mut self.use_stopping_sl, "");
-                ui.add(egui::DragValue::new(&mut self.ifs.stopping_sl).speed(0.01).clamp_range(0..=UPPER_BOUND));
-            });
-            ui.horizontal(|ui|{
-                ui.label("Batch mode: ");
-                ui.checkbox(&mut self.use_batch_mode, "");
-                // TODO -- DIRECTORY PICKER HERE
-            });
-            ui.separator();
-            ui.horizontal(|ui|{
-                ui.label("Pause rendering? ");
-                ui.checkbox(&mut self.ifs.pause_rendering, "");
-            });
+        egui::SidePanel::right("right_panel").resizable(false).show(ctx, |ui| {
+           ui.horizontal(|ui|{
+               ui.label("Image dimensions: ");
+               integer_edit_field(ui, &mut self.ifs.width);
+               integer_edit_field(ui, &mut self.ifs.height); //TODO--IMPLEMENT ASPECT RATIO LOCKING
+           });
+           ui.horizontal(|ui| {
+               ui.label("Lock aspect ratio? ");
+               ui.checkbox(&mut self.lock_aspect_ratio, "");
+           });
+           ui.separator();
+           ui.horizontal(|ui|{
+               ui.label("Brightness: ");
+               ui.add(egui::DragValue::new(&mut self.ifs.brightness).speed(0.1).clamp_range(0..=UPPER_BOUND));
+           });
+           ui.horizontal(|ui|{
+               ui.label("1/Gamma: ");
+               ui.add(egui::DragValue::new(&mut self.ifs.gamma_inv).speed(0.1).clamp_range(0..=UPPER_BOUND));
+           });
+           ui.horizontal(|ui|{
+               ui.label("Gamma Threshold: ");
+               ui.add(egui::DragValue::new(&mut self.ifs.gamma_thresh).speed(0.1).clamp_range(0..=UPPER_BOUND));
+           });
+           ui.horizontal(|ui|{
+               ui.label("Vibrancy: ");
+               ui.add(egui::DragValue::new(&mut self.ifs.vibrancy).speed(0.1));
+           });
+           ui.horizontal(|ui|{
+               ui.label("Background color: ");
+               egui::widgets::color_picker::color_edit_button_rgb(ui, &mut self.ifs.background_color);
+           });
+           ui.separator();
+           ui.horizontal(|ui|{
+               ui.label("Field of View: ");
+               ui.add(egui::DragValue::new(&mut self.ifs.camera.fov).speed(0.01).clamp_range(1..=180));
+           });
+           ui.horizontal(|ui|{
+               ui.label("Aperture: ");
+               ui.add(egui::DragValue::new(&mut self.ifs.camera.aperture).speed(0.01).clamp_range(0..=UPPER_BOUND));
+           });
+           ui.horizontal(|ui|{
+               ui.label("Focus Distance: ");
+               ui.add(egui::DragValue::new(&mut self.ifs.camera.focus_distance).speed(0.01));
+           });
+           ui.horizontal(|ui|{
+               ui.label("Depth of Field: ");
+               ui.add(egui::DragValue::new(&mut self.ifs.camera.dof).speed(0.005).clamp_range(0..=1));
+           });
+           ui.separator();
+           ui.horizontal(|ui|{
+               ui.label("Entropy: ");
+               ui.add(egui::DragValue::new(&mut self.ifs.entropy).speed(0.01).clamp_range(0..=UPPER_BOUND));
+           });
+           ui.horizontal(|ui|{
+               ui.label("Fuse timer: ");
+               ui.add(egui::DragValue::new(&mut self.ifs.fuse).speed(0.01).clamp_range(0..=UPPER_BOUND));
+           });
+           ui.separator();
+           ui.horizontal(|ui|{
+               ui.label("Stopping SL: ");
+               ui.checkbox(&mut self.use_stopping_sl, "");
+               ui.add(egui::DragValue::new(&mut self.ifs.stopping_sl).speed(0.01).clamp_range(0..=UPPER_BOUND));
+           });
+           ui.horizontal(|ui|{
+               ui.label("Batch mode: ");
+               ui.checkbox(&mut self.use_batch_mode, "");
+               // TODO -- DIRECTORY PICKER HERE
+           });
+           ui.separator();
+           ui.horizontal(|ui|{
+               ui.label("Pause rendering? ");
+               ui.checkbox(&mut self.ifs.pause_rendering, "");
+           });
         });
 
         egui::CentralPanel::default().frame(Frame::none()).show(ctx, |ui| {
@@ -352,6 +358,21 @@ impl eframe::App for Display<'_> {
         });
 
         ctx.request_repaint();
+
+        let m = re_memory::MemoryUse::capture();
+        if m.used().unwrap() > 40000000 {
+            let mut sum = 0;
+            if let Some(stats) = re_memory::accounting_allocator::tracking_stats() {
+                for item in stats.top_callstacks {
+                    sum += item.extant.size * item.stochastic_rate;
+                    println!("size({}) * rate({}) = {} | backtrace: {}",
+                             item.extant.size, item.stochastic_rate,
+                             item.extant.size * item.stochastic_rate, item.readable_backtrace);
+                }
+                re_memory::accounting_allocator::set_tracking_callstacks(false);
+                println!("sum, now on the master again (oops) :({})",sum);
+            }
+        }
     }
 }
 

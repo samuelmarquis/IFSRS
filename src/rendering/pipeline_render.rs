@@ -100,6 +100,7 @@ impl Render {
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: "vs_main", // 1.
+                //compilation_options: Default::default(),
                 buffers: &[], // 2.
             },
             primitive: wgpu::PrimitiveState {
@@ -123,6 +124,7 @@ impl Render {
             fragment: Some(wgpu::FragmentState { // 3.
                 module: &shader,
                 entry_point: "fs_main",
+                //compilation_options: Default::default(),
                 targets: &[Some(wgpu::ColorTargetState { // 4.
                     format: Rgba8UnormSrgb,
                     blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),

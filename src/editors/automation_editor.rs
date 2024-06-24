@@ -3,79 +3,81 @@ use eframe::emath;
 use eframe::emath::{Pos2, Rect, Vec2, vec2};
 use egui::{Sense, Ui, Context, Id};
 use crate::editors::concepts::node_graph_editor::*;
+use crate::editors::concepts::nodes::*;
 
-fn get_node_types() -> Vec<Node> {
+fn create_archetypes() -> Vec<NodeArchetype> {
     vec![
-        Node::new(None, "Audio", "Sources",
+        NodeArchetype::new("Audio", cat_map("Sources"),
                   vec![],
                   vec!["RMS", "Pitch"]),
-        Node::new(None, "Constant", "Sources",
+        NodeArchetype::new("Constant", cat_map("Sources"),
                   vec![],
                   vec!["0"]),
 
-        Node::new(None, "x+y", "Arithmetic",
+        NodeArchetype::new("x+y", cat_map("Arithmetic"),
                   vec!["x", "y"],
                   vec![""]),
-        Node::new(None, "x-y", "Arithmetic",
+        NodeArchetype::new("x-y", cat_map("Arithmetic"),
                   vec!["x", "y"],
                   vec![""]),
-        Node::new(None, "x*y", "Arithmetic",
+        NodeArchetype::new("x*y", cat_map("Arithmetic"),
                   vec!["x", "y"],
                   vec![""]),
-        Node::new(None, "x/y", "Arithmetic",
+        NodeArchetype::new("x/y", cat_map("Arithmetic"),
                   vec!["x", "y"],
                   vec![""]),
-        Node::new(None, "x%y", "Arithmetic",
+        NodeArchetype::new("x%y", cat_map("Arithmetic"),
                   vec!["x", "y"],
                   vec![""]),
-        Node::new(None, "-x", "Arithmetic",
+        NodeArchetype::new("-x", cat_map("Arithmetic"),
                   vec![""],
                   vec![""]),
-        Node::new(None, "1/x", "Arithmetic",
+        NodeArchetype::new("1/x", cat_map("Arithmetic"),
                   vec![""],
                   vec![""]),
 
-        Node::new(None, "sin(x)", "Trig",
+        NodeArchetype::new("sin(x)", cat_map("Trig"),
                   vec![""],
                   vec![""]),
-        Node::new(None, "cos(x)", "Trig",
+        NodeArchetype::new("cos(x)", cat_map("Trig"),
                   vec![""],
                   vec![""]),
-        Node::new(None, "tan(x)", "Trig",
+        NodeArchetype::new("tan(x)", cat_map("Trig"),
                   vec![""],
                   vec![""]),
-        Node::new(None, "cot(x)", "Trig",
+        NodeArchetype::new("cot(x)", cat_map("Trig"),
                   vec![""],
                   vec![""]),
-        Node::new(None, "sec(x)", "Trig",
+        NodeArchetype::new("sec(x)", cat_map("Trig"),
                   vec![""],
                   vec![""]),
-        Node::new(None, "csc(x)", "Trig",
+        NodeArchetype::new("csc(x)", cat_map("Trig"),
                   vec![""],
                   vec![""]),
 
-        Node::new(None, "poltocar", "Coordinates",
+        NodeArchetype::new("poltocar", cat_map("Coordinates"),
                   vec!["r","θ"],
                   vec!["x","y"]),
-        Node::new(None, "cartopol", "Coordinates",
+        NodeArchetype::new("cartopol", cat_map("Coordinates"),
                   vec!["x","y"],
                   vec!["r","θ"]),
-        Node::new(None, "sphertocar", "Coordinates",
-                  vec!["ρ","θ","ϕ"],
+        NodeArchetype::new("sphertocar", cat_map("Coordinates"),
+                  vec!["ρ","θ","φ"],
                   vec!["x","y","z"]),
-        Node::new(None, "cartospher", "Coordinates",
+        NodeArchetype::new("cartospher", cat_map("Coordinates"),
                   vec!["x","y","z"],
-                  vec!["ρ","θ","ϕ"]),
+                  vec!["ρ","θ","φ"]),
     ]
 }
 
-fn get_cat_map() -> HashMap<String, egui::Color32> {
-    HashMap::from([
-        ("Sources".to_string(), egui::Color32::from_rgb(200,190,215)),
-        ("Arithmetic".to_string(), egui::Color32::from_rgb(225,170,170)),
-        ("Trig".to_string(), egui::Color32::from_rgb(170,200,150)),
-        ("Coordinates".to_string(), egui::Color32::from_rgb(170,190,225)),
-    ])
+fn cat_map(s: &'static str) -> (&'static str, egui::Color32, NodeType) {
+    match s{
+        "Sources" => (s, egui::Color32::from_rgb(200,190,215), NodeType::SOURCE),
+        "Arithmetic" => (s, egui::Color32::from_rgb(225,170,170), NodeType::EFFECT),
+        "Trig" => (s, egui::Color32::from_rgb(170,200,150), NodeType::EFFECT),
+        "Coordinates" => (s, egui::Color32::from_rgb(170,190,225), NodeType::EFFECT),
+        _ => panic!("category does not have entry in cat_map")
+    }
 }
 
 pub struct AutomationEditor {
@@ -85,13 +87,13 @@ pub struct AutomationEditor {
 impl Default for AutomationEditor {
     fn default() -> Self {
         Self {
-            node_graph_editor: NodeGraphEditor::new("ae", get_node_types(), get_cat_map()),
+            node_graph_editor: NodeGraphEditor::new(create_archetypes()),
         }
     }
 }
 
 impl AutomationEditor {
-    pub fn ui_content(&mut self, ctx: &Context, ui: &mut Ui) -> egui::Response {
-        self.node_graph_editor.ui_content(ctx,ui)
+    pub fn ui_content(&mut self, ctx: &Context) {
+        self.node_graph_editor.ui_content(ctx)
     }
 }
