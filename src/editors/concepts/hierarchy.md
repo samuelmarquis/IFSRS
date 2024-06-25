@@ -1,4 +1,4 @@
-# THE NODE STRUCTURE: (OUTDATED)
+# THE NODE STRUCTURE: (OUTDATED)...
 NodeGraphEditor has:
 * Collection of nodes
 * Collection of node-archetypes
