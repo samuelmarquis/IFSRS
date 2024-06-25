@@ -42,6 +42,9 @@ itertools = "0.13.0"
 lazy_static = "1.4.0"
 re_memory = "0.16.1"
 slotmap = "1.0.7"
+petgraph = "0.6.5"
+strum = "0.26.3"
+strum_macros = "0.26.4"
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

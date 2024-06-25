@@ -52,7 +52,7 @@ struct Color([f32; 4]);
 
 impl GraphicsEngine {
     pub fn new_engine(wgpu: &RenderState, work_status_tx: SyncSender<()>, ifs_rx: Receiver<IFS>, app_tx: SyncSender<TextureId>) -> Self {
-        let shader_desc: ShaderModuleDescriptor = wgpu::include_wgsl!("ifs_kernel.wgsl");
+        let shader_desc: ShaderModuleDescriptor<'_> = wgpu::include_wgsl!("ifs_kernel.wgsl");
         let shader = wgpu.device.create_shader_module(shader_desc);
 
         let compute = Compute::init(wgpu, &shader);
