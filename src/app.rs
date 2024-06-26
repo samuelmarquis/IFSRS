@@ -35,10 +35,12 @@ pub struct Display<'a> {
     ifs_hash: u64,
     // image settings
     lock_aspect_ratio: bool,
-    batch_dir: &'a Path,
-    use_batch_mode: bool,
 
-    use_stopping_sl: bool,
+    //anim settings
+    anim_frame: usize,
+    batch_dir: &'a Path, //where to export animation frames
+    use_batch_mode: bool, //are we exporting an animation?
+    use_stopping_sl: bool, //remove this, but SL is the sampling depth at which we incr. anim_frame
     //windows
     show_rcurves: bool,
     show_palette: bool,
@@ -66,6 +68,8 @@ impl Default for Display<'_> {
             ifs: ifs,
             ifs_hash: 0,
             lock_aspect_ratio: true,
+
+            anim_frame: 0,
             batch_dir: Path::new("."),
             use_batch_mode: false,
             use_stopping_sl: false,

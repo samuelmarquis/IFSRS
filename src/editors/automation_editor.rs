@@ -24,9 +24,10 @@ lazy_static! {
 pub type Blocks = HopSlotMap<BlockId, Block>;
 
 pub struct AutomationEditor {
+    anim_frame: usize, // TODO -- GET THIS FROM THE APP
     archetypes: Vec<BlockArchetype>,
     blocks: Blocks,
-    //terminals: Terminals,
+    //the graph is undirected because parallel edges do not make sense in this context
     graph: StableGraph<Terminal, bool, petgraph::Undirected>,
 
     selected_block: Option<BlockId>,
@@ -49,6 +50,7 @@ impl Default for AutomationEditor{
             BlockArchetype::from_type(BlockType::EFFECT(f))
             })).collect();
         Self {
+            anim_frame: 0,
             archetypes: archetypes,
             blocks: Blocks::default(),
             //terminals: Terminals::default(),
@@ -153,9 +155,11 @@ impl AutomationEditor {
 
                 for (p, t) in n.get_terminal_pos()
                 {
+
                     self.graph[t].pos = p;
+                    let term = &self.graph[t];
                     // Set click region
-                    self.graph.node_weight(t).unwrap().draw(&painter, p);
+                    term.draw(&painter, p);
                     let term_size = Vec2::splat(2.0 * 4.0);
                     let term_rect = Rect::from_center_size(p, term_size);
                     //32 isn't magic, just needs to be larger than the largest number of terminals
@@ -170,7 +174,9 @@ impl AutomationEditor {
                             ui.close_menu();
                         }
                     });
-                    if term_response.is_pointer_button_down_on() {
+                    if term_response.is_pointer_button_down_on()
+                    && term.io == TermType::OUT //drags can only start from OUT
+                    {
                         edging |= true;
 
                         if self.drag_target.is_none(){
@@ -191,8 +197,12 @@ impl AutomationEditor {
             }
 
             if stopped_edging {
-                if let (Some(a), Some(b)) = (self.term_target, self.term_start){
-                    if self.graph[a].io != self.graph[b].io { //in can only connect to out
+                if let (Some(a), Some(b)) = (self.term_start, self.term_target){
+                    if self.graph[b].io == TermType::IN { //drag always starts at OUT
+                        let d:Vec<EdgeIndex> = self.graph.edges(b).map(|e|e.id()).collect();
+                        for e in d{
+                            self.graph.remove_edge(e);
+                        }
                         self.graph.add_edge(a, b, true);
                     }
                 }
