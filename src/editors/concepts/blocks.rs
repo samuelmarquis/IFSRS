@@ -71,7 +71,7 @@ pub enum EffectType{
 }
 #[derive(Clone, Debug, PartialEq, Copy, )]
 pub enum TargetType{
-    ITERATOR,
+    ITERATOR(i32),
     DISPLAY,
 }
 
@@ -82,6 +82,7 @@ fn cat_map(s: &'static str) -> (egui::Color32) {
         "Trig" => (egui::Color32::from_rgb(170,200,150)),
         "Coordinates" => (egui::Color32::from_rgb(170,190,225)),
         "Targets" => (egui::Color32::from_rgb(220,225,180)),
+        "Iterators" => (egui::Color32::from_rgb(170,210,225)),
         _ => panic!("category {s} not have entry in cat_map")
     }
 }
@@ -93,29 +94,15 @@ pub struct BlockArchetype {
     pub block_type: BlockType,
     pub inputs: Vec<&'static str>,
     pub outputs: Vec<&'static str>,
-    pub size: (f32, f32)
 }
 
 impl BlockArchetype {
-    fn new(block_type: BlockType,
-           name: &'static str,
-           category: &'static str,
-           inputs: Vec<&'static str>,
-           outputs: Vec<&'static str>) -> Self
+    pub(crate) fn new(block_type: BlockType,
+                      name: &'static str,
+                      category: &'static str,
+                      inputs: Vec<&'static str>,
+                      outputs: Vec<&'static str>) -> Self
     {
-        let mut width: f32 = 0.0;
-        let mut height: f32 = 0.0;
-        match block_type {
-            BlockType::SOURCE(_) | BlockType::TARGET(_) => {
-                width = 80.0;
-                height = max(inputs.len(), outputs.len()) as f32 * 20.0;
-            }
-            BlockType::EFFECT(_) => {
-                width = name.len() as f32 * 10.0;
-                //space for terminals +20 for label
-                height = max(inputs.len(), outputs.len()) as f32 * 20.0 + 20.0;
-            }
-        }
         Self {
             name,
             category,
@@ -123,7 +110,6 @@ impl BlockArchetype {
             block_type,
             inputs,
             outputs,
-            size: (width, height),
         }
     }
 
@@ -159,7 +145,7 @@ impl BlockArchetype {
         }   }
         BlockType::TARGET(st) => {
             match st {
-            TargetType::ITERATOR => Self::new(n, "Iterator", "Targets", vec![""], vec![]),
+            TargetType::ITERATOR(_) => panic!("You can't create an iterator block like that."),
             TargetType::DISPLAY => Self::new(n, "Display", "Targets", vec![""], vec![]),
         }   }
         }
@@ -172,6 +158,7 @@ pub struct Block {
     pub block_type: BlockType,
     pub in_idx: Vec<NodeIndex>,
     pub out_idx: Vec<NodeIndex>,
+    pub val: Option<f32>,
     //parameters of some kind?
     pub pos: Pos2,
     size: Vec2,
@@ -188,17 +175,31 @@ impl Block {
             block_type: archetype.block_type,
             in_idx: Vec::new(),
             out_idx: Vec::new(),
+            val: None,
 
             pos: Pos2::default(),
-            size: Vec2::from(archetype.size),
+            size: Vec2::default(),
             label_color: archetype.color,
             body_rect: Rect::ZERO,
             label_rect: Rect::ZERO,
         }
     }
 
-    pub fn set_pos(&mut self, pos: Pos2){
-        self.pos = pos;
+    pub fn update(&mut self, pos: Option<Pos2>){
+        if let Some(p) = pos{
+            self.pos = p;
+        }
+
+        self.size = match self.block_type {
+            BlockType::SOURCE(_) | BlockType::TARGET(_) =>
+                vec2(80.0, max(self.in_idx.len(), self.out_idx.len()) as f32 * 20.0),
+            BlockType::EFFECT(_) => {
+                //space for terminals +20 for label
+                vec2(self.name.len() as f32 * 10.0,
+                     max(self.in_idx.len(), self.out_idx.len()) as f32 * 20.0 + 20.0)
+            }
+        };
+
         self.body_rect = Rect::from_min_size(self.pos, self.size);
         self.label_rect = match self.block_type {
             BlockType::SOURCE(_) => {
@@ -221,16 +222,20 @@ impl Block {
         painter.rect(self.body_rect, egui::Rounding::ZERO, BODY_COLOR, *BODY_STROKE);
         painter.rect(self.label_rect, egui::Rounding::ZERO, self.label_color, *LABEL_STROKE);
 
-        if matches!(self.block_type, BlockType::EFFECT(_)) {
-            painter.text(self.label_rect.center(),
-                         egui::Align2::CENTER_CENTER,
-                         self.name.clone(),
-                         egui::FontId::monospace(11.0),
-                         egui::Color32::WHITE);
+        match self.block_type{
+            BlockType::EFFECT(_) => {
+                painter.text( self.label_rect.center(),
+                    egui::Align2::CENTER_CENTER,
+                    self.name.clone(),
+                    egui::FontId::monospace(11.0),
+                    egui::Color32::WHITE);
+            }
+            _ => {}
         }
     }
 
-    pub fn get_terminal_pos(&mut self) -> Vec<(Pos2,NodeIndex)> {
+    //todo: split calculating terminal positions to another function
+    pub fn get_terminals(&self) -> Vec<(Pos2, NodeIndex)> {
         let in_start = self.body_rect.left_top();
         let in_stop = match self.block_type {
             BlockType::SOURCE(_) => { Pos2::default() }
@@ -255,15 +260,17 @@ impl Block {
 }
 #[derive(Clone, Debug)]
 pub struct Terminal {
-    pub pos: Pos2,
+    pub pos: Pos2, //uhg
+    pub owner: BlockId, //even more uhg
     pub name: &'static str,
     pub io: TermType,
 }
 
 impl Terminal{
-    pub(crate) fn new(name: &'static str, io: TermType) -> Self{
+    pub(crate) fn new(name: &'static str, io: TermType, owner: BlockId) -> Self{
         Self{
             pos: Pos2::default(),
+            owner,
             name,
             io,
         }

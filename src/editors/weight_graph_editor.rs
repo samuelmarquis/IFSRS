@@ -25,6 +25,8 @@ impl Default for WeightGraphEditor {
 /// us to edit them directly, as well as change the transform the node represents.
 /// A sub-window should open up to browse parameters, which contains images of deformations induced
 /// by that transformation on a grid in the unit volume.
+/// Affines from the affine editor will be represented here as macros that can be clicked into
+/// to reveal the flow from in to out.
 impl WeightGraphEditor {
     pub fn ui_content(&mut self, ctx: &Context){
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -35,7 +37,9 @@ impl WeightGraphEditor {
                 Rect::from_min_size(Pos2::ZERO, vec2(1.0, 1.0)),
                 response.rect,
             );
-            ui.label("One day, I'm going to be a real window!");
+            if ui.button("Add Iterator").clicked(){
+
+            }
 
             let xwidth = response.rect.max[0] - response.rect.min[0];
             let ywidth = response.rect.max[1] - response.rect.min[1];

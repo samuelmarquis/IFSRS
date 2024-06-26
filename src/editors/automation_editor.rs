@@ -1,19 +1,16 @@
-
-use std::cmp::{max, PartialEq};
-use std::collections::HashMap;
 use std::iter::*;
-use std::rc::Rc;
-use std::{iter, vec};
+use std::vec;
+
 use eframe::emath;
 use eframe::emath::{Pos2, Rect, Vec2, vec2};
-use egui::{Context, Painter, Sense, Ui};
+use egui::{Context, pos2, Sense};
 use itertools::Itertools;
 use lazy_static::lazy_static;
-use nalgebra::point;
-use slotmap::HopSlotMap;
 use petgraph::prelude::*;
 use petgraph::visit::{IntoEdgeReferences, IntoEdges};
+use slotmap::HopSlotMap;
 use strum::IntoEnumIterator;
+
 use crate::editors::concepts::blocks::*;
 
 const EDGE_COLOR: egui::Color32 = egui::Color32::from_rgb(255,255,255);
@@ -28,14 +25,12 @@ pub struct AutomationEditor {
     archetypes: Vec<BlockArchetype>,
     blocks: Blocks,
     //the graph is undirected because parallel edges do not make sense in this context
-    graph: StableGraph<Terminal, bool, petgraph::Undirected>,
-
+    graph: StableGraph<Terminal, bool, Undirected>,
     selected_block: Option<BlockId>,
     click_pos: Option<Pos2>,
 
     drag_start: Option<Pos2>,
     drag_target: Option<Pos2>,
-
     term_start: Option<NodeIndex>,
     term_target: Option<NodeIndex>,
 }
@@ -43,12 +38,11 @@ pub struct AutomationEditor {
 impl Default for AutomationEditor{
     fn default() -> Self {
         let archetypes =
-            iter::once(BlockArchetype::from_type(BlockType::SOURCE(SourceType::AUDIO))).chain(
-            iter::once(BlockArchetype::from_type(BlockType::SOURCE(SourceType::CONSTANT)))).chain(
-            iter::once(BlockArchetype::from_type(BlockType::TARGET(TargetType::DISPLAY)))).chain(
-            EffectType::iter().map(|f| {
-            BlockArchetype::from_type(BlockType::EFFECT(f))
-            })).collect();
+            once(BlockArchetype::from_type(BlockType::SOURCE(SourceType::AUDIO)))
+            .chain(once(BlockArchetype::from_type(BlockType::SOURCE(SourceType::CONSTANT))))
+            .chain(EffectType::iter().map(|f| { BlockArchetype::from_type(BlockType::EFFECT(f))}))
+            .chain(once(BlockArchetype::from_type(BlockType::TARGET(TargetType::DISPLAY))))
+            .collect();
         Self {
             anim_frame: 0,
             archetypes: archetypes,
@@ -66,6 +60,16 @@ impl Default for AutomationEditor{
 }
 
 impl AutomationEditor {
+
+    /// Draws the window
+    /// Draws blocks & terminals
+    ///Enables:
+    /// Adding, removing, & repositioning blocks
+    /// Creating & deleting connections between terminals
+    /// The editing of block properties via the side-panel
+    ///Ensures:
+    /// only valid connections are made
+    /// TODO--drag from IN-terminal with connection to drag the OUT's connection somewhere else
     pub fn ui_content(&mut self, ctx: &Context) {
         egui::SidePanel::left("left_panel")
             .resizable(false)
@@ -76,7 +80,7 @@ impl AutomationEditor {
                     ui.separator();
                 }
                 else{
-                    ui.label("Select a node to see properties"); //center this. or dont
+                    ui.label("Select a node to see properties");
                 }
             });
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -96,29 +100,22 @@ impl AutomationEditor {
 
             //we want to spawn nodes where the initial right-click took place, as opposed to
             //where the mouse ends up in selecting an option from the drop-down
-            if response.secondary_clicked() { //steals clicks from the context menu
+            if response.secondary_clicked() { //steals clicks from the context menu?
                 self.click_pos = ui.ctx().pointer_interact_pos();
             }
 
             response.context_menu(|ui| {
                 let mut categories = self.archetypes.iter()
-                    .map(|n| n.category)
+                    .map(|a| a.category)
                     .collect::<Vec<_>>();
                 categories.dedup(); //NOTE--CATEGORIES MUST BE ALREADY SORTED
 
                 for category in categories { ui.menu_button(category,|ui| {
                     for archetype in self.archetypes.iter()
-                        .filter(|x|x.category == category)
+                        .filter(|a|a.category == category)
                     { if ui.button(archetype.name).clicked() {
                         if let Some(pos) = self.click_pos {
-                            let x = self.blocks.insert(Block::new(archetype));
-                            self.blocks[x].set_pos(pos);
-                            self.blocks[x].in_idx = (archetype.inputs.iter().map(|s|
-                            { self.graph.add_node(Terminal::new(s, TermType::IN)) }))
-                                .collect();
-                            self.blocks[x].out_idx = (archetype.outputs.iter().map(|s|
-                            { self.graph.add_node(Terminal::new(s, TermType::OUT)) }))
-                                .collect();
+                            AutomationEditor::add_block(&mut self.blocks, &mut self.graph, archetype, pos);
                             ui.close_menu();
                         }
                     } }
@@ -128,7 +125,8 @@ impl AutomationEditor {
             let mut edging: bool = false;
             let mut stopped_edging: bool = false;
             let mut prune_term: Option<NodeIndex> = None;
-            let mut delete_node: Option<BlockId> = None;
+            let mut delete_block: Option<BlockId> = None;
+            let mut process_queue: Vec<NodeIndex> = Vec::new();
 
             //draw edges first so they go under nodes
             for e in self.graph.edge_references(){
@@ -136,26 +134,32 @@ impl AutomationEditor {
                                      *EDGE_STROKE);
             }
 
-            for (i, n) in self.blocks.iter_mut(){
-                let node_id = response.id.with(i);
-                let node_response = ui.interact(n.body_rect, node_id, Sense::drag());
-                n.set_pos(n.pos + node_response.drag_delta());
+            for (id, block) in self.blocks.iter_mut(){
+                let node_id = response.id.with(id);
+                let node_response = ui.interact(block.body_rect, node_id, Sense::drag());
+                if node_response.drag_delta().length() > 0.0 {
+                    block.update(Some(block.pos + node_response.drag_delta()));
+                    //todo: only update terminal position here
+                }
                 if node_response.is_pointer_button_down_on(){
-                    self.selected_block = Some(i);
+                    self.selected_block = Some(id);
                 }
 
                 node_response.context_menu(|ui| {
                     if ui.button("Delete Node").clicked() {
-                        delete_node = Some(i);
+                        delete_block = Some(id);
                         ui.close_menu();
                     }
                 });
 
-                n.draw(&painter);
+                if matches!(block.block_type, BlockType::TARGET(TargetType::DISPLAY))
+                && block.val == None { //todo check hash & timestep
+                    process_queue.push(*block.in_idx.first().unwrap())
+                }
+                block.draw(&painter);
 
-                for (p, t) in n.get_terminal_pos()
+                for (p, t) in block.get_terminals()
                 {
-
                     self.graph[t].pos = p;
                     let term = &self.graph[t];
                     // Set click region
@@ -196,6 +200,10 @@ impl AutomationEditor {
                 }
             }
 
+            for id in process_queue{
+                self.process(id);
+            }
+
             if stopped_edging {
                 if let (Some(a), Some(b)) = (self.term_start, self.term_target){
                     if self.graph[b].io == TermType::IN { //drag always starts at OUT
@@ -224,19 +232,111 @@ impl AutomationEditor {
                     self.graph.remove_edge(a);
                 }
             }
-            if let Some(n) = delete_node {
-                self.selected_block = None; //be more granular, blanket solution
-                for (_,t) in self.blocks[n].get_terminal_pos(){
+            if let Some(block) = delete_block {
+                //refactor if we ever decouple opening the block context menu from selecting
+                self.selected_block = None;
+                for (_,t) in self.blocks[block].get_terminals(){
                     let d:Vec<EdgeIndex> = self.graph.edges(t).map(|e|e.id()).collect();
                     for a in d{
                         self.graph.remove_edge(a);
                     }
                     self.graph.remove_node(t);
                 }
-                self.blocks.remove(n);
+                self.blocks.remove(block);
             }
-
             response
         });
+    }
+
+    fn add_block<'a>(
+        blocks: & mut Blocks,
+        graph: &mut StableGraph<Terminal, bool, Undirected>,
+        arch: &BlockArchetype,
+        pos: Pos2) -> BlockId
+    {
+        let id = blocks.insert(Block::new(arch));
+        blocks[id].in_idx = arch.inputs
+            .iter()
+            .map(|s| { graph.add_node(Terminal::new(s, TermType::IN, id)) })
+            .collect();
+        blocks[id].out_idx = arch.outputs
+            .iter()
+            .map(|s| { graph.add_node(Terminal::new(s, TermType::OUT, id)) })
+            .collect();
+        blocks[id].update(Some(pos));
+        return id
+    }
+    //TODO--Enable removing terminals
+    fn update_block(
+        b: &mut Block,
+        graph: &mut StableGraph<Terminal, bool, Undirected>,
+        term: Terminal,
+        name: Option<String>)
+    {
+        b.in_idx.push(graph.add_node(term));
+        b.update(None);
+        if let Some(s) = name {
+            b.name = s; //eugh
+        }
+    }
+
+    /// Given an iterator id, iterator name, and parameter name,
+    /// looks for a target block with that iterator id and adds the new param,
+    /// updating the name if necessary.
+    /// If the target isn't found, it creates one with the param.
+    /// In either case we return a NodeIndex, so that the renderer can call process() with it
+    /// to get a value for the automated field.
+    pub fn update_target(
+        &mut self,
+        it_id: i32,
+        it_name: String,
+        param_name: String,) -> NodeIndex
+    {
+        //Iterator block exists, find the block and update it
+        if let Some((id, b)) = self.blocks
+            .iter_mut()
+            .find(|(id, b)|
+                {matches!(b.block_type, BlockType::TARGET(TargetType::ITERATOR(it_id)))})
+        {
+            AutomationEditor::update_block(
+                b,
+                &mut self.graph,
+                Terminal::new(param_name.leak(), TermType::IN, id),
+                Some(it_name));
+            // 🤓 umm did you know that return statements are optional in rust 🤓
+            return b.in_idx.last().unwrap().clone();
+        }
+        //Iterator block doesn't exist, create it
+        else {
+            let arch = BlockArchetype::new(
+                BlockType::TARGET(TargetType::ITERATOR(it_id)),
+                it_name.leak(),
+                "Iterators",
+                vec![param_name.leak()],
+                vec![]);
+            let id = AutomationEditor::add_block(
+                &mut self.blocks,
+                &mut self.graph,
+                &arch,
+                pos2(350.0,50.0));
+            return self.blocks[id].in_idx.last().unwrap().clone();
+        }
+    }
+
+    /// Computes a value from one target terminal at the current timestep.
+    /// Walks backwards through the graph, calculating & storing values as it does so.
+    pub fn process(&mut self, id: NodeIndex){
+
+        if let Some(idx) = self.graph.neighbors(id).next() {
+
+            let b_id = self.graph[idx].owner;
+            let n_idx : Vec<NodeIndex> = self.blocks[b_id].in_idx.iter().cloned().collect();
+            for b in n_idx{
+                self.process(b)
+            }
+        }
+        else{
+            //value is uncomputable if node is disconnected
+        }
     }
 }

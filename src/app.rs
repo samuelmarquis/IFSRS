@@ -1,28 +1,20 @@
-use mpsc::sync_channel;
+use std::hash::Hash;
 use std::path::Path;
-use std::sync::{Arc, mpsc, Mutex};
-use std::sync::mpsc::{SyncSender, TryRecvError, TrySendError};
+use std::sync::mpsc;
+use std::sync::mpsc::{SyncSender, TryRecvError};
 use std::sync::mpsc::Receiver;
 use std::thread;
 use std::time::Duration;
-use bytemuck::cast_slice;
-use egui::{Frame, TextureId, widgets, Window};
-use wgpu::{BufferAddress, FilterMode};
-use crate::rendering::graphics_engine::GraphicsEngine;
-use crate::editors::response_curve_editor::ResponseCurveEditor;
-use crate::editors::palette_editor::PaletteEditor;
+use egui::{Frame, TextureId, widgets};
+use rand::random;
 use crate::editors::affine_editor::AffineEditor;
-use crate::editors::weight_graph_editor::WeightGraphEditor;
 use crate::editors::animation_editor::AnimationEditor;
 use crate::editors::automation_editor::AutomationEditor;
-use crate::rendering::gpu_structs::ParametersStruct;
-use crate::viewport::Viewport;
+use crate::editors::palette_editor::PaletteEditor;
+use crate::editors::response_curve_editor::ResponseCurveEditor;
+use crate::editors::weight_graph_editor::WeightGraphEditor;
 use crate::model::ifs::IFS;
-use std::hash::Hash;
-use std::hash::Hasher;
-use egui_winit::winit::dpi::Size;
-use re_memory::{accounting_allocator, AccountingAllocator};
-use crate::rendering::pipeline_render::Render;
+use crate::viewport::Viewport;
 
 const UPPER_BOUND: u16 = u16::MAX; //for when we need an inclusive range on something that should have no upper bound
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
@@ -169,10 +161,7 @@ impl eframe::App for Display<'_> {
                     .with_inner_size(size),
                 |ctx, class| {
                     editor();
-
-                    // self.response_curve_editor.ui_content(ctx);
                     if ctx.input(|i| i.viewport().close_requested()) {
-                        // Tell parent viewport that we should not show next frame:
                         *show = false;
                     }
                 },
@@ -206,7 +195,6 @@ impl eframe::App for Display<'_> {
                           &mut self.show_automator);
         }
 
-
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 ui.menu_button("File", |ui| {
@@ -227,8 +215,9 @@ impl eframe::App for Display<'_> {
                     if ui.add(widgets::Button::new("Undo").shortcut_text("Ctrl + Z")).clicked() {}
                     if ui.add(widgets::Button::new("Redo").shortcut_text("Ctrl + Shift + Z")).clicked() {}
                     ui.separator();
-                    if ui.button("Switch to B").clicked() {} // TODO--A/B testing, text should change
-                    if ui.button("Switch to B without saving").clicked() {} //TODO -- GRAY OUT IF UNAVAIL
+                    // TODO--A/B testing
+                    if ui.button("Switch to B").clicked() {}
+                    if ui.button("Switch to B without saving").clicked() {}
                     ui.separator();
                     if ui.button("Copy parameters to clipboard").clicked() {}
                     if ui.button("Paste parameters from clipboard").clicked() {}
@@ -243,7 +232,7 @@ impl eframe::App for Display<'_> {
                         self.show_animator = false;
                         self.show_automator = false;
                     }
-                    egui::widgets::global_dark_light_mode_buttons(ui);
+                    //widgets::global_dark_light_mode_buttons(ui);
                 });
                 ui.menu_button("Help", |ui| {
                     ui.hyperlink_to("Github", "https://github.com/samuelmarquis/IFSRS");
@@ -251,29 +240,32 @@ impl eframe::App for Display<'_> {
             });
         });
 
-
         egui::SidePanel::left("left_panel").resizable(false).show(ctx, |ui| {
-           ui.label("Editors");
-           if ui.button("Response Curves").clicked() {
+            ui.label("Editors");
+            if ui.button("Response Curves").clicked() {
                self.show_rcurves = !self.show_rcurves;
-           }
-           if ui.button("Palette").clicked() {
+            }
+            if ui.button("Palette").clicked() {
                self.show_palette = !self.show_palette;
-           }
-           if ui.button("Affine editor").clicked() {
+            }
+            if ui.button("Affine editor").clicked() {
                self.show_affines = !self.show_affines;
-           }
-           if ui.button("Weight graph").clicked() {
+            }
+            if ui.button("Weight graph").clicked() {
                self.show_weights = !self.show_weights;
-           }
-           if ui.button("Animation").clicked() {
+            }
+            if ui.button("Animation").clicked() {
                self.show_animator = !self.show_animator;
-           }
-           if ui.button("Automation").clicked() {
+            }
+            if ui.button("Automation").clicked() {
                self.show_automator = !self.show_automator;
-           }
+            }
+            ui.separator();
+            //todo: figure out how to call this inside the weight graph/affine editors
+            if ui.button("Add iterator 🤮").clicked(){
+                self.automation_editor.update_target(5, "Iterator 0".to_string(), random::<u16>().to_string());
+            }
         });
-
 
         egui::SidePanel::right("right_panel").resizable(false).show(ctx, |ui| {
            ui.horizontal(|ui|{
@@ -304,7 +296,7 @@ impl eframe::App for Display<'_> {
            });
            ui.horizontal(|ui|{
                ui.label("Background color: ");
-               egui::widgets::color_picker::color_edit_button_rgb(ui, &mut self.ifs.background_color);
+               widgets::color_picker::color_edit_button_rgb(ui, &mut self.ifs.background_color);
            });
            ui.separator();
            ui.horizontal(|ui|{
@@ -355,10 +347,6 @@ impl eframe::App for Display<'_> {
             //self.ifs.camera.translate(self.viewport.pos_delta);
 
             // TODO: track resizes and send a size message
-
-            ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
-                egui::warn_if_debug_build(ui);
-            });
         });
 
         ctx.request_repaint();
@@ -374,8 +362,9 @@ impl eframe::App for Display<'_> {
                              item.extant.size * item.stochastic_rate, item.readable_backtrace);
                 }
                 re_memory::accounting_allocator::set_tracking_callstacks(false);
-                println!("sum, now on the master again (oops) :({})",sum);
+                println!("sum:({})",sum);
             }
+            panic!("Getting ahead of the OOMKiller");
         }
     }
 }
