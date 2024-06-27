@@ -24,6 +24,7 @@ Block has:
 Terminal has:
 * name
 * io enum{IN, OUT}
+* value
 * position, unfortunately
 
 AutomationEditor DOES:
@@ -45,22 +46,18 @@ When a drag is released:
 * if on an IN terminal, connect to that terminal if possible, overwriting the existing connection should one exist
 
 ## SIGNALS
-Each TARGET block has a value that leaves the automation editor.
+Each TARGET block has a value that leaves the automation editor. 
+We use the `process(&NodeIndex)` function to get an `Option<f32>` value.
 * The trivial case is of the DISPLAY block, which leaves only insofar as it is presented to the user.
-* The non-trivial case is of the ITERATOR block, which binds values from the automation editor to values in the IFS.
+  * The automation editor collects a list of DISPLAYs that don't have a value, and calls `process` on them
+    every frame until they're able to get one.
+* The non-trivial case is of the ITERATOR block. 
+  * Some part of the program will call into `process` with the NodeIndex returned from `update_target`
+    and get the value for that specific parameter.
 
-We can either directly access the IFS, or simply return a set of requested values and allow the app
-to route those values from the Automation Editor to their corresponding values in the IFS.
+The `process` function is well-documented.
 
-The question then arises: what the fuck are you talking about?
-* Does the app have a list of fields in the IFS that map to parameters?
-  * How do you even store a list of the IFS' fields?
-* Does the app maintain a copy of the IFS with sentinel values that indicate what goes where?
-* Do we let the render thread own the IFS and have it send us a message when it wants a value for a field?
-* Do we have to wrap everything in the IFS in some sort of Option type that represents whether it's automated?
-
-or,
-* Can we call fn process() (externally for ITERATOR, internally for DISPLAY) with an ID and let it return a value?
-* This ID value will be the ID of a specific terminal (NodeId)--the block level is too vague, as iterators should group
-all their automation targets into a single block
-* 
+## THE PROBLEM:
+Detect changes in the graph (timestamp, the graph structure, values of constants) to force a recompute.
+Recompute forcing has to last more than a full cycle, or the process queue needs to be filled after all possible
+changes to the graph are made, meaning we either have to iterate over blocks twice, or do a lot more stuff with gross state.

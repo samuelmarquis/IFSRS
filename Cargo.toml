@@ -45,6 +45,7 @@ slotmap = "1.0.7"
 petgraph = "0.6.5"
 strum = "0.26.3"
 strum_macros = "0.26.4"
+pyo3 = "0.22.0"
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

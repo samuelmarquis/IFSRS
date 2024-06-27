@@ -9,7 +9,7 @@ use egui::{Frame, TextureId, widgets};
 use rand::random;
 use crate::editors::affine_editor::AffineEditor;
 use crate::editors::animation_editor::AnimationEditor;
-use crate::editors::automation_editor::AutomationEditor;
+use crate::editors::automation_editor::automation_editor::*;
 use crate::editors::palette_editor::PaletteEditor;
 use crate::editors::response_curve_editor::ResponseCurveEditor;
 use crate::editors::weight_graph_editor::WeightGraphEditor;
