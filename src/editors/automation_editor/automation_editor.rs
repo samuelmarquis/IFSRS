@@ -29,7 +29,7 @@ pub struct AutomationEditor {
   blocks: Blocks,
   //the graph is undirected because parallel edges do not make sense in this context
   graph: StableGraph<Terminal, bool, Undirected>,
-  //g_hash: u64,
+  g_hash: u64,
   //force_recompute: bool,
   selected_block: Option<BlockId>,
   click_pos: Option<Pos2>,
@@ -54,7 +54,7 @@ impl Default for AutomationEditor {
       blocks: Blocks::default(),
       //terminals: Terminals::default(),
       graph: StableGraph::default(),
-      //g_hash: 0,
+      g_hash: 0,
       //force_recompute: false,
       selected_block: None,
       click_pos: None,
@@ -189,11 +189,7 @@ impl AutomationEditor {
           self.graph[t].pos = p;
           let term = &self.graph[t];
           //todo: hashes, timesteps, and so on
-          if block.block_type == BlockType::TARGET(TargetType::DISPLAY) && Some(id) != delete_block {
-            if term.val == None {//|| self.force_recompute {
-              process_queue.push(t);
-            }
-          }
+
           if block.block_type == BlockType::SOURCE(SourceType::CONSTANT) {
             term.val.unwrap_or(f32::NAN).to_bits().hash(&mut s);
           }
@@ -232,14 +228,14 @@ impl AutomationEditor {
           }
         }
       }
-      /*
-      self.force_recompute = false;
+
+      let mut force_recompute = false;
       let h = s.finish();
       if h != self.g_hash{
         println!("forcing recompute, hash is now {h}");
         self.g_hash = h;
-        self.force_recompute = true;
-      }*/
+        force_recompute = true;
+      }
 
 
       if stopped_edging {
@@ -282,14 +278,16 @@ impl AutomationEditor {
         self.blocks.remove(block);
       }
       //ONLY DISPLAYS SHOULD END UP IN HERE. ITERATORS CALL PROCESS FROM OUTSIDE
-      if !process_queue.is_empty() {
-        for id in process_queue {
-          //println!("processing {:?} with force_recompute: {:?}", id, self.force_recompute);
-          let v = self.process(&id, true);
-          self.graph[id].val = v;
-          self.graph[id].name = v.unwrap_or(f32::NAN).to_string()
-        }
-      }
+
+      // for (block_id, _) in self.blocks
+      //   .iter()
+      //   .filter(|(id,b)| { b.block_type == TARGET(DISPLAY) }) {
+      //   let id = self.blocks[block_id].in_idx[0];
+      //   //println!("processing {:?} with force_recompute: {:?}", id, self.force_recompute);
+      //   let v = self.process(&id, true);
+      //   self.graph[id].val = v;
+      //   self.graph[id].name = v.unwrap_or(f32::NAN).to_string()
+      // }
       response
     });
   }
@@ -388,7 +386,7 @@ impl AutomationEditor {
         self.graph[*id].val = v;
         return v;
       }
-      //if the OUT does not have a value, we need to compute it
+      //if the OUT does not have a value, or the value is outdated, we need to compute it
       else {
         let prev_block_id = self.graph[prev_term].parent;
         match self.blocks[prev_block_id].block_type {

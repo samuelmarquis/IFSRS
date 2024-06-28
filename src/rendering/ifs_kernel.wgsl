@@ -101,7 +101,7 @@ struct RealParam {
 
 @group(0) @binding(9) var<storage, read_write> next_sample: u32;
 
-@group(0) @binding(10) var<storage, write> done: u32;
+//@group(0) @binding(10) var<storage, write> done: u32;
 
 fn f32_inf_or_nan(f: f32) -> bool { //dumb func to check inf/nan
     let bits = bitcast<u32>(f);
