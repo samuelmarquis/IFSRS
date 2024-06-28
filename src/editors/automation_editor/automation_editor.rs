@@ -12,6 +12,8 @@ use petgraph::prelude::*;
 use petgraph::visit::{IntoEdgeReferences, IntoEdges};
 use slotmap::HopSlotMap;
 use strum::IntoEnumIterator;
+use BlockType::TARGET;
+use TargetType::DISPLAY;
 
 use crate::editors::automation_editor::blocks::*;
 use crate::editors::automation_editor::block_logic::*;
@@ -46,7 +48,7 @@ impl Default for AutomationEditor {
       once(BlockArchetype::from_type(BlockType::SOURCE(SourceType::AUDIO)))
         .chain(once(BlockArchetype::from_type(BlockType::SOURCE(SourceType::CONSTANT))))
         .chain(EffectType::iter().map(|f| { BlockArchetype::from_type(BlockType::EFFECT(f)) }))
-        .chain(once(BlockArchetype::from_type(BlockType::TARGET(TargetType::DISPLAY))))
+        .chain(once(BlockArchetype::from_type(TARGET(DISPLAY))))
         .collect();
     Self {
       anim_frame: 0,
@@ -101,7 +103,7 @@ impl AutomationEditor {
                 }
             }
             BlockType::EFFECT(_) => {}
-            BlockType::TARGET(_) => {}
+            TARGET(_) => {}
           }
         } else {
           ui.label("Select a node to see properties");
@@ -357,7 +359,7 @@ impl AutomationEditor {
     //Iterator block doesn't exist, create it
     else {
       let arch = BlockArchetype::new(
-        BlockType::TARGET(TargetType::ITERATOR(it_id)),
+        TARGET(TargetType::ITERATOR(it_id)),
         it_name.leak(),
         "Iterators",
         vec![param_name.leak()],
@@ -414,7 +416,7 @@ impl AutomationEditor {
             }
             return self.graph[prev_term].val
           }
-          BlockType::TARGET(_) => panic!("Targets do not have outputs, something is VERY wrong")
+          TARGET(_) => panic!("Targets do not have outputs, something is VERY wrong")
         }
       }
     //if no connection exists, value is uncomputable

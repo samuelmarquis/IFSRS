@@ -52,7 +52,7 @@ struct Color([f32; 4]);
 
 impl GraphicsEngine {
     pub fn new_engine(wgpu: &RenderState, work_status_tx: SyncSender<()>, ifs_rx: Receiver<IFS>, app_tx: SyncSender<TextureId>) -> Self {
-        let shader_desc: ShaderModuleDescriptor<'_> = wgpu::include_wgsl!("ifs_kernel.wgsl");
+        let shader_desc = wgpu::include_wgsl!("ifs_kernel.wgsl");
         let shader = wgpu.device.create_shader_module(shader_desc);
 
         let compute = Compute::init(wgpu, &shader);
@@ -75,8 +75,6 @@ impl GraphicsEngine {
     }
 
     pub fn render(&mut self, wgpu: &RenderState) {
-        wgpu.queue.write_buffer(&self.compute_pipeline.done_buffer, 0 as BufferAddress, &vec![0u8; 4]);
-
         match self.ifs_rx.try_recv() {
             Ok(mut model) => {
                 println!("updating model");
@@ -109,30 +107,9 @@ impl GraphicsEngine {
         // moved_tx.send(()).unwrap();
         // wgpu.queue.on_submitted_work_done(move || moved_tx.send(()).unwrap());
         wgpu.queue.submit([compute_cmd, render_cmd]);
-
-        // read one single bit
-        loop {
-            let buffer_slice = self.compute_pipeline.done_buffer.slice(..);
-            let (sender, receiver) = futures::channel::oneshot::channel();
-            buffer_slice.map_async(MapMode::Read, move |result| {
-                sender.send(()).unwrap();
-            });
-
-
-            wgpu.device.poll(wgpu::Maintain::Wait);
-            if let Ok(()) = futures::executor::block_on(receiver) {
-                let data_view = buffer_slice.get_mapped_range();
-
-                let x: &[u32] = bytemuck::cast_slice(&data_view);
-                if x[0] == 1 {
-                    break;
-                }
-
-                self.compute_pipeline.done_buffer.unmap();
-            }
-        }
-
-        // this write will be submitted at the start of the next render?
+        sleep(Duration::from_millis(16));
+        // TODO: determine sleep time
+        self.work_status_tx.send(()).unwrap();
     }
 
     fn update_model(&mut self, wgpu: &RenderState, model: &mut IFS) {
@@ -157,8 +134,15 @@ impl GraphicsEngine {
         self.update_settings(wgpu, model);
 
         // update palette
-        let color = Color([0.0, 0.0, 1.0, 0.001]);
-        let colors = vec![color; MAX_PALETTE_COLORS];
+        // let color = Color([0.0, 0.0001, 0.4, 1.0]);
+        // let colors = vec![color; MAX_PALETTE_COLORS];
+        // let colors = vec![]
+        let mut colors = vec![];
+        for i in 0..MAX_PALETTE_COLORS {
+            let c = 1.0 - 1.0/MAX_PALETTE_COLORS as f32;
+            colors.push([c, c, c, 1.0]);
+        }
+
         wgpu.queue.write_buffer(&self.compute_pipeline.palette_buffer, 0 as BufferAddress, &bytemuck::cast_slice(&colors));
 
         // update parameters
@@ -256,6 +240,7 @@ impl GraphicsEngine {
         }
 
         // TODO: DO NOT REBUILD THE SHADER THIS MUCH
+        // EMBRACE NESTED RFLECTION GARBAGE
         let src = fs::read_to_string("src/rendering/ifs_kernel.wgsl").unwrap();
 
         // let src = include_str!("ifs_kernel.wgsl").to_owned();

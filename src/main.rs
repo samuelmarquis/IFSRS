@@ -19,16 +19,16 @@ mod tests;
 
 use eframe::Renderer::Wgpu;
 
-use re_memory::AccountingAllocator;
+// use re_memory::AccountingAllocator;
 
-#[global_allocator]
-static GLOBAL: AccountingAllocator<std::alloc::System>
-= AccountingAllocator::new(std::alloc::System);
+// #[global_allocator]
+// static GLOBAL: AccountingAllocator<std::alloc::System>
+// = AccountingAllocator::new(std::alloc::System);
 
 // When compiling natively:
 #[cfg(not(target_arch = "wasm32"))]
 fn main() -> eframe::Result<()> {
-    re_memory::accounting_allocator::set_tracking_callstacks(true);
+    // re_memory::accounting_allocator::set_tracking_callstacks(true);
     env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
 
     let native_options = eframe::NativeOptions {

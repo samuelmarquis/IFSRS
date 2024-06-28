@@ -66,11 +66,11 @@ impl Render {
         });
 
         let render_pipeline_layout =
-            wgpu.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[&bind_group_layout],
-                push_constant_ranges: &[],
-            });
+          wgpu.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+              label: Some("Render Pipeline Layout"),
+              bind_group_layouts: &[&bind_group_layout],
+              push_constant_ranges: &[],
+          });
 
         let render_pipeline = Self::create_pipeline_with(wgpu, &render_pipeline_layout, shader);
 
@@ -100,7 +100,6 @@ impl Render {
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: "vs_main", // 1.
-                //compilation_options: Default::default(),
                 buffers: &[], // 2.
             },
             primitive: wgpu::PrimitiveState {
@@ -124,7 +123,6 @@ impl Render {
             fragment: Some(wgpu::FragmentState { // 3.
                 module: &shader,
                 entry_point: "fs_main",
-                //compilation_options: Default::default(),
                 targets: &[Some(wgpu::ColorTargetState { // 4.
                     format: Rgba8UnormSrgb,
                     blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),

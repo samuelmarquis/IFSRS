@@ -537,7 +537,7 @@ fn main(
 
         let proj  = vec2<i32>(i32(round(projf.x)), i32(round(projf.y)));
 
-		var color = vec4(getPaletteColor(p.color_index), selected_iterator.opacity);
+		var color = vec4(getPaletteColor(p.color_index), 0.0005);
 
 		//TODO: this is the same as dof
 		let defocus = max(0.0, abs(dot(p.pos.xyz - settings.camera.focus_point.xyz, -settings.camera.forward.xyz)) - settings.camera.depth_of_field);
@@ -553,7 +553,7 @@ fn main(
         }
 		//mark area in focus with red
 		if (/*settings.mark_area_in_focus != 0 && */defocus < 0.01) {
-			color = vec4(1.0, 0.0, 0.0, 2.0);
+			color = vec4(1.0, 0.001, 0.0, 0.001);
 		}
         color.x *= color.w;
         color.y *= color.w;
@@ -587,7 +587,7 @@ fn main(
 			accumulate_hit(proj, color);
 			//accumulate_hit(proj, vec4(1.0, 0.0, 0.0, 2.0));
 		}
-        done = u32(1);
+//        done = u32(1);
 	}
 	state[gid] = p;
 }
